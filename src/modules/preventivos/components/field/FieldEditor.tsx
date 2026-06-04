@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { usePreventivo } from '../../hooks/usePreventivo'
 import { useRestorePhotoPreviews } from '../../hooks/useRestorePhotoPreviews'
+import { useUploadCompletion } from '../../hooks/useUploadCompletion'
 import { usePreventivoStore } from '../../store'
 import { PuntoCard } from '../PuntoCard'
 import type { FotoKey } from '../../types'
@@ -11,6 +12,7 @@ export function FieldEditor() {
   const { record, processAndQueuePhoto, syncToServer } = usePreventivo(id ?? '')
   const { addPunto } = usePreventivoStore()
   useRestorePhotoPreviews()
+  useUploadCompletion()
 
   if (!record) {
     return <div className="text-slate-400 text-center py-16">Cuadrante no encontrado.</div>

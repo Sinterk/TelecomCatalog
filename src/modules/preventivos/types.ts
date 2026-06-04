@@ -19,6 +19,8 @@ export interface FotoEntry {
   fileName: string
   /** ID en la cola de upload offline */
   queueId?: string
+  /** ID del archivo en Google Drive — disponible tras upload exitoso */
+  driveFileId?: string
   capturedAt: string
   annotated: boolean
 }

@@ -3,7 +3,7 @@
  * Funciona en TODOS los browsers (Firefox, Safari, Chrome).
  * El Background Sync del SW es un bonus adicional solo para Chrome.
  */
-import { getPending, markUploading, markDone, markError } from './uploadQueue'
+import { getPending, markUploading, markDone, markError, resetStuckUploading } from './uploadQueue'
 
 const PROXY_BASE = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001'
 
@@ -17,6 +17,9 @@ export async function drainQueue(): Promise<{ uploaded: number; failed: number }
   let failed = 0
 
   try {
+    // Recuperar items que quedaron atascados en 'uploading' si la app se cerró durante un drain anterior
+    await resetStuckUploading()
+
     const pending = await getPending()
 
     for (const item of pending) {
@@ -34,10 +37,23 @@ export async function drainQueue(): Promise<{ uploaded: number; failed: number }
           body: form,
         })
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        if (!res.ok) {
+          const errText = await res.text().catch(() => res.statusText)
+          throw new Error(`HTTP ${res.status}: ${errText}`)
+        }
 
+        const data = await res.json() as { fileId: string; folder: string }
         await markDone(item.id)
         uploaded++
+
+        // Notificar a la app del driveFileId para que lo persista en el store y en el servidor
+        window.dispatchEvent(new CustomEvent('photo-uploaded', {
+          detail: {
+            queueId: item.id,
+            driveFileId: data.fileId,
+            metadata: item.metadata,
+          },
+        }))
       } catch (err) {
         console.warn('[drainer] fallo subiendo', item.fileName, err)
         await markError(item.id)

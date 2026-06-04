@@ -28,6 +28,15 @@ export async function getPending(): Promise<QueueItem[]> {
   return db.getAllFromIndex('uploadQueue', 'byStatus', 'pending')
 }
 
+/** Resetea items atascados en 'uploading' (app cerrada durante un drain) */
+export async function resetStuckUploading(): Promise<void> {
+  const db = await getDB()
+  const stuck = await db.getAllFromIndex('uploadQueue', 'byStatus', 'uploading')
+  for (const item of stuck) {
+    await db.put('uploadQueue', { ...item, status: 'pending' })
+  }
+}
+
 export async function markUploading(id: string): Promise<void> {
   const db = await getDB()
   const item = await db.get('uploadQueue', id)

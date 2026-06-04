@@ -3,12 +3,13 @@ import { usePreventivoStore } from '../store'
 import { getPhotoBlob } from '@/core/offline/photoStore'
 import type { FotoKey } from '../types'
 
+const PROXY_BASE = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001'
 const FOTO_KEYS: FotoKey[] = ['fotoLevantamiento', 'fotoAntes', 'fotoDespues']
 
 /**
- * Al montar, recorre todos los puntos del store y restaura los previewUrl
- * leyendo los blobs desde IndexedDB (los objectURL expiran al cerrar la pestaña).
- * Se ejecuta una sola vez por sesión de navegador.
+ * Al montar, recorre todos los puntos del store y restaura los previewUrl:
+ * 1. Si tiene driveFileId → usa la URL del proxy (funciona en cualquier dispositivo)
+ * 2. Si tiene queueId → restaura desde blob en IndexedDB (dispositivo local)
  */
 export function useRestorePhotoPreviews() {
   const { records, setFoto } = usePreventivoStore()
@@ -21,14 +22,26 @@ export function useRestorePhotoPreviews() {
         for (const punto of preventivo.puntos) {
           for (const key of FOTO_KEYS) {
             const entry = punto[key]
-            // Solo restaurar si tiene queueId pero el previewUrl está vacío
-            if (!entry || entry.previewUrl || !entry.queueId) continue
+            if (!entry || entry.previewUrl) continue
 
+            // Opción 1: ya subida a Drive → URL del proxy (cross-device)
+            if (entry.driveFileId) {
+              setFoto(preventivo.id, punto.id, key, {
+                ...entry,
+                previewUrl: `${PROXY_BASE}/api/drive/file/${entry.driveFileId}`,
+              })
+              continue
+            }
+
+            // Opción 2: pendiente de subir → blob local en IndexedDB
+            if (!entry.queueId) continue
             const blobEntry = await getPhotoBlob(entry.queueId)
             if (cancelled || !blobEntry) continue
 
-            const previewUrl = URL.createObjectURL(blobEntry.blob)
-            setFoto(preventivo.id, punto.id, key, { ...entry, previewUrl })
+            setFoto(preventivo.id, punto.id, key, {
+              ...entry,
+              previewUrl: URL.createObjectURL(blobEntry.blob),
+            })
           }
         }
       }
@@ -36,7 +49,6 @@ export function useRestorePhotoPreviews() {
 
     restore().catch(console.error)
     return () => { cancelled = true }
-    // Solo al montar — no re-ejecutar si el store cambia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }

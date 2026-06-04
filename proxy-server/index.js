@@ -53,30 +53,43 @@ if (sa) {
  * durante la misma sesión (el caso más frecuente en terreno).
  */
 const folderCache = new Map()
+/**
+ * Promesas en vuelo para evitar race conditions: dos requests simultáneos
+ * no crearán carpetas duplicadas aunque el caché esté vacío.
+ */
+const folderCreating = new Map()
 
-/** Crea o devuelve una carpeta existente, con caché en memoria */
+/** Crea o devuelve una carpeta existente, con caché en memoria y sin race conditions */
 async function ensureFolder(name, parentId) {
   const safe  = parentId || ROOT_FOLDER_ID
   const cacheKey = `${name}::${safe}`
 
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)
+  // Si ya hay una llamada en vuelo para esta carpeta, esperar esa misma promise
+  if (folderCreating.has(cacheKey)) return folderCreating.get(cacheKey)
 
-  const q = `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${safe}' in parents and trashed=false`
-  const res = await drive.files.list({ q, fields: 'files(id,name)', spaces: 'drive' })
+  const promise = (async () => {
+    const q = `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${safe}' in parents and trashed=false`
+    const res = await drive.files.list({ q, fields: 'files(id,name)', spaces: 'drive' })
 
-  let id
-  if (res.data.files?.length) {
-    id = res.data.files[0].id
-  } else {
-    const created = await drive.files.create({
-      requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [safe] },
-      fields: 'id',
-    })
-    id = created.data.id
-  }
+    let id
+    if (res.data.files?.length) {
+      id = res.data.files[0].id
+    } else {
+      const created = await drive.files.create({
+        requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [safe] },
+        fields: 'id',
+      })
+      id = created.data.id
+    }
 
-  folderCache.set(cacheKey, id)
-  return id
+    folderCache.set(cacheKey, id)
+    folderCreating.delete(cacheKey)
+    return id
+  })()
+
+  folderCreating.set(cacheKey, promise)
+  return promise
 }
 
 /**
@@ -229,6 +242,30 @@ app.post('/api/drive/upload', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error('[upload]', err)
     return res.status(500).json({ error: String(err) })
+  }
+})
+
+// ─── DRIVE: servir imagen por fileId ─────────────────────────────────────────
+/**
+ * GET /api/drive/file/:fileId
+ * Sirve la imagen directamente desde Drive usando la Service Account.
+ * Permite mostrar previews en modo oficina (u otro dispositivo) sin exponer
+ * credenciales al cliente.
+ */
+app.get('/api/drive/file/:fileId', async (req, res) => {
+  if (!drive) return res.status(503).json({ error: 'Drive no configurado' })
+  try {
+    const { fileId } = req.params
+    const [metaRes, streamRes] = await Promise.all([
+      drive.files.get({ fileId, fields: 'mimeType' }),
+      drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' }),
+    ])
+    res.setHeader('Content-Type', metaRes.data.mimeType || 'image/jpeg')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    streamRes.data.pipe(res)
+  } catch (err) {
+    console.error('[drive/file]', err)
+    res.status(500).json({ error: String(err) })
   }
 })
 
