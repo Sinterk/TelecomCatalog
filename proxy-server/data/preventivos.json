@@ -56,6 +56,22 @@
     ],
     "status": "draft",
     "createdAt": 1780583425296,
-    "updatedAt": 1780586327955
+    "updatedAt": 1780590709546
+  },
+  {
+    "id": "_k6eh5fbTfqi0xhLbPaC7",
+    "cuadrante": {
+      "comuna": "",
+      "cuadrante": "",
+      "fecha": "2026-06-04",
+      "semana": "",
+      "nombreCuadrante": "",
+      "direccion": "",
+      "zona": ""
+    },
+    "puntos": [],
+    "status": "draft",
+    "createdAt": 1780590701994,
+    "updatedAt": 1780590701994
   }
 ]

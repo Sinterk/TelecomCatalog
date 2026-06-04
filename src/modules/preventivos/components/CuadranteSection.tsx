@@ -1,12 +1,14 @@
 import { usePreventivoStore } from '../store'
+import { SaveButton } from '@/ui/SaveButton'
 import type { CuadranteInfo } from '../types'
 
 interface Props {
   preventivoId: string
   cuadrante: CuadranteInfo
+  onSave: () => Promise<void>
 }
 
-export function CuadranteSection({ preventivoId, cuadrante }: Props) {
+export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
   const { updateCuadrante } = usePreventivoStore()
 
   function set<K extends keyof CuadranteInfo>(key: K, value: CuadranteInfo[K]) {
@@ -105,6 +107,11 @@ export function CuadranteSection({ preventivoId, cuadrante }: Props) {
             className={inputCls}
           />
         </Field>
+      </div>
+
+      {/* Guardar cuadrante */}
+      <div className="flex justify-end pt-1">
+        <SaveButton onSave={onSave} label="Guardar cuadrante" />
       </div>
     </div>
   )

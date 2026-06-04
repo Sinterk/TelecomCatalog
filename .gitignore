@@ -4,3 +4,6 @@ dist/
 .env.local
 proxy-server/node_modules/
 proxy-server/service-account.json
+
+# Local Netlify folder
+.netlify

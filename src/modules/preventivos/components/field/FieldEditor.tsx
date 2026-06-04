@@ -65,6 +65,7 @@ export function FieldEditor() {
             punto={punto}
             index={i}
             editable
+            onSave={syncToServer}
             onPhotoCapture={(file: File, key: FotoKey) =>
               processAndQueuePhoto(file, punto.id, key)
             }

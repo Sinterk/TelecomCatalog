@@ -42,7 +42,7 @@ export function OfficeEditor() {
       </div>
 
       {/* Info cuadrante */}
-      <CuadranteSection preventivoId={record.id} cuadrante={record.cuadrante} />
+      <CuadranteSection preventivoId={record.id} cuadrante={record.cuadrante} onSave={syncToServer} />
 
       {/* Puntos */}
       <div className="space-y-3">
@@ -60,6 +60,7 @@ export function OfficeEditor() {
             punto={punto}
             index={i}
             editable
+            onSave={syncToServer}
             onPhotoCapture={async () => {
               // En modo oficina no se capturan fotos desde el formulario
             }}

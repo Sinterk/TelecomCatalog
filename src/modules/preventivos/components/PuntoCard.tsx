@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PhotoCapture } from './PhotoCapture'
+import { SaveButton } from '@/ui/SaveButton'
 import { usePreventivoStore } from '../store'
 import type { Punto, FotoKey } from '../types'
 
@@ -8,10 +9,11 @@ interface Props {
   punto: Punto
   index: number
   editable?: boolean
+  onSave: () => Promise<void>
   onPhotoCapture: (file: File, key: FotoKey) => Promise<void>
 }
 
-export function PuntoCard({ preventivoId, punto, index, editable = true, onPhotoCapture }: Props) {
+export function PuntoCard({ preventivoId, punto, index, editable = true, onSave, onPhotoCapture }: Props) {
   const { updatePunto, removePunto, removeFoto } = usePreventivoStore()
   const [expanded, setExpanded] = useState(true)
 
@@ -136,6 +138,13 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onPhoto
               ))}
             </div>
           </div>
+
+          {/* Guardar punto */}
+          {editable && (
+            <div className="flex justify-end pt-1 border-t border-slate-700">
+              <SaveButton onSave={onSave} label={`Guardar punto ${index + 1}`} />
+            </div>
+          )}
         </div>
       )}
     </div>
