@@ -53,9 +53,10 @@ registerRoute(
 )
 
 // ─── Background Sync: drena la cola de uploads cuando hay red ─────────────
+// La URL del proxy se inyecta en tiempo de build por Vite
+const PROXY_BASE = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001'
+
 async function drainUploadQueue() {
-  // Importación dinámica dentro del SW — comparte el módulo compilado
-  const PROXY_BASE = (self as unknown as { VITE_PROXY_URL?: string }).VITE_PROXY_URL ?? 'http://localhost:3001'
 
   const { openDB } = await import('idb')
   const db = await openDB('telecom-catalog', 1)

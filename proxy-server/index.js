@@ -47,18 +47,36 @@ if (sa) {
 
 // ─── Helpers Drive ────────────────────────────────────────────────────────────
 
-/** Crea o devuelve una carpeta existente (idempotente) */
+/**
+ * Caché en memoria de IDs de carpetas: "nombre::parentId" → folderId
+ * Se pierde al reiniciar el servidor, pero evita llamadas redundantes a Drive
+ * durante la misma sesión (el caso más frecuente en terreno).
+ */
+const folderCache = new Map()
+
+/** Crea o devuelve una carpeta existente, con caché en memoria */
 async function ensureFolder(name, parentId) {
-  const safe = parentId || ROOT_FOLDER_ID
+  const safe  = parentId || ROOT_FOLDER_ID
+  const cacheKey = `${name}::${safe}`
+
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)
+
   const q = `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${safe}' in parents and trashed=false`
   const res = await drive.files.list({ q, fields: 'files(id,name)', spaces: 'drive' })
-  if (res.data.files?.length) return res.data.files[0].id
 
-  const created = await drive.files.create({
-    requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [safe] },
-    fields: 'id',
-  })
-  return created.data.id
+  let id
+  if (res.data.files?.length) {
+    id = res.data.files[0].id
+  } else {
+    const created = await drive.files.create({
+      requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [safe] },
+      fields: 'id',
+    })
+    id = created.data.id
+  }
+
+  folderCache.set(cacheKey, id)
+  return id
 }
 
 /**
@@ -200,12 +218,12 @@ app.post('/api/drive/upload', upload.single('file'), async (req, res) => {
     const preventivosFolderId  = await ensureFolder('Preventivos', ROOT_FOLDER_ID)
     const cuadranteFolderId    = await ensureFolder(slug, preventivosFolderId)
 
-    // 3. Subir la foto
-    const fileId = await upsertFile(file.originalname, mimeType || file.mimetype, file.buffer, cuadranteFolderId)
+    // 3. Subir foto y actualizar metadata EN PARALELO
+    const [fileId] = await Promise.all([
+      upsertFile(file.originalname, mimeType || file.mimetype, file.buffer, cuadranteFolderId),
+      updateMetadata(preventivo, cuadranteFolderId),
+    ])
     console.info(`[upload] ✓ ${file.originalname} → ${slug}/`)
-
-    // 4. Actualizar metadata JSON en la misma carpeta
-    await updateMetadata(preventivo, cuadranteFolderId)
 
     return res.json({ fileId, folder: slug })
   } catch (err) {
