@@ -1,0 +1,61 @@
+[
+  {
+    "id": "r-4aTadO3UhBGXInQsGhV",
+    "cuadrante": {
+      "comuna": "Providencia",
+      "cuadrante": "1",
+      "fecha": "2026-06-04",
+      "semana": "W15",
+      "nombreCuadrante": "",
+      "direccion": "ped-ll-etc",
+      "zona": "2"
+    },
+    "puntos": [
+      {
+        "id": "uEUzH9UpBw34i9rbx99Ai",
+        "descripcion": "Cruce OK",
+        "direccion": "Salvador 12",
+        "correccion": "",
+        "fotoLevantamiento": {
+          "previewUrl": "",
+          "fileName": "Providencia_1_2026-06-04_uEUzH9UpBw34i9rbx99Ai_fotoLevantamiento_1780585912975.jpg",
+          "queueId": "f1f3Vcua6jgliryPqE8Eo",
+          "capturedAt": "2026-06-04T15:11:52.975Z",
+          "annotated": false
+        },
+        "nombre": "P1"
+      },
+      {
+        "id": "XQrWLDA3Jhh3YBDD8WZvT",
+        "descripcion": "cruce bajo",
+        "direccion": "salvador 15",
+        "correccion": "Se corrije cruce",
+        "fotoLevantamiento": {
+          "previewUrl": "",
+          "fileName": "Providencia_1_2026-06-04_XQrWLDA3Jhh3YBDD8WZvT_fotoLevantamiento_1780585919535.jpg",
+          "queueId": "VlfWPPzDajqpwehLn2a7Q",
+          "capturedAt": "2026-06-04T15:11:59.535Z",
+          "annotated": false
+        },
+        "fotoAntes": {
+          "previewUrl": "",
+          "fileName": "Providencia_1_2026-06-04_XQrWLDA3Jhh3YBDD8WZvT_fotoAntes_1780585921534.jpg",
+          "queueId": "Nj5pixA7ol3y60T-rWhOS",
+          "capturedAt": "2026-06-04T15:12:01.534Z",
+          "annotated": false
+        },
+        "fotoDespues": {
+          "previewUrl": "",
+          "fileName": "Providencia_1_2026-06-04_XQrWLDA3Jhh3YBDD8WZvT_fotoDespues_1780585924003.jpg",
+          "queueId": "Zu_8QS0j-N7W0b9T3KkyS",
+          "capturedAt": "2026-06-04T15:12:04.003Z",
+          "annotated": false
+        },
+        "nombre": "P2"
+      }
+    ],
+    "status": "draft",
+    "createdAt": 1780583425296,
+    "updatedAt": 1780586327955
+  }
+]
