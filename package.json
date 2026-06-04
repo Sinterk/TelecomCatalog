@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:field": "vite --mode field",
+    "dev:office": "vite --mode office",
     "build": "tsc && vite build",
+    "build:office": "tsc && vite build --mode office",
+    "build:field": "tsc && vite build --mode field",
     "preview": "vite preview"
   },
   "dependencies": {

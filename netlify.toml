@@ -1,0 +1,28 @@
+# netlify.toml
+# El build command específico (office/field) se configura
+# en el dashboard de cada sitio — aquí solo van los defaults compartidos.
+
+[build]
+  publish = "dist"
+
+# Redirige todas las rutas al index.html (necesario para SPA con React Router)
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Headers de seguridad y caché para PWA
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
