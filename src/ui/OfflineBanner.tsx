@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getQueueStats } from '@/core/offline/uploadQueue'
+import { getQueueStats, resetErrors } from '@/core/offline/uploadQueue'
 import { drainQueue } from '@/core/offline/mainThreadDrainer'
 
 type DrainState = 'idle' | 'uploading' | 'done' | 'error'
@@ -20,6 +20,7 @@ export function OfflineBanner() {
     if (!navigator.onLine || drainState === 'uploading') return
     setDrainState('uploading')
     try {
+      await resetErrors()
       const { uploaded, failed } = await drainQueue()
       await refreshStats()
       if (failed > 0) setDrainState('error')

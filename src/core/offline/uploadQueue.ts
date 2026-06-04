@@ -37,6 +37,27 @@ export async function resetStuckUploading(): Promise<void> {
   }
 }
 
+/** Resetea items en 'error' a 'pending' para que puedan reintentarse */
+export async function resetErrors(): Promise<void> {
+  const db = await getDB()
+  const errors = await db.getAllFromIndex('uploadQueue', 'byStatus', 'error')
+  for (const item of errors) {
+    await db.put('uploadQueue', { ...item, status: 'pending', retries: 0 })
+  }
+}
+
+/** Devuelve el item de cola o undefined si no existe */
+export async function getQueueItem(id: string): Promise<QueueItem | undefined> {
+  const db = await getDB()
+  return db.get('uploadQueue', id)
+}
+
+/** Elimina definitivamente un item de la cola */
+export async function deleteQueueItem(id: string): Promise<void> {
+  const db = await getDB()
+  await db.delete('uploadQueue', id)
+}
+
 export async function markUploading(id: string): Promise<void> {
   const db = await getDB()
   const item = await db.get('uploadQueue', id)
