@@ -1,143 +1,147 @@
+import { useRef, useState } from 'react'
 import { usePreventivoStore } from '../store'
-import { SaveButton } from '@/ui/SaveButton'
+import { compressImage } from '@/core/utils/compressImage'
+import { savePhotoBlob, deletePhotoBlob } from '@/core/offline/photoStore'
+import { nanoid } from '@/core/utils/nanoid'
 import type { CuadranteInfo } from '../types'
 
 interface Props {
   preventivoId: string
   cuadrante: CuadranteInfo
-  onSave: () => Promise<void>
+  role: 'tecnico' | 'jp'
+  onSave?: () => void
 }
 
-export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
+const inputCls = 'w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:border-brand-500 focus:outline-none placeholder-slate-500'
+
+export function CuadranteSection({ preventivoId, cuadrante, role, onSave }: Props) {
   const { updateCuadrante } = usePreventivoStore()
+  const planoInputRef = useRef<HTMLInputElement>(null)
+  const [loadingPlano, setLoadingPlano] = useState(false)
 
   function set<K extends keyof CuadranteInfo>(key: K, value: CuadranteInfo[K]) {
     updateCuadrante(preventivoId, { [key]: value })
+    onSave?.()
+  }
+
+  async function handlePlanoCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLoadingPlano(true)
+    try {
+      const compressed = await compressImage(file)
+      const blobId = nanoid()
+      const slug = (cuadrante.cuadrante || 'sin-id').replace(/[^a-zA-Z0-9-]/g, '_')
+      const fileName = `plano_${slug}.jpeg`
+      if (cuadrante.fotoPlano?.blobId) await deletePhotoBlob(cuadrante.fotoPlano.blobId).catch(() => {})
+      await savePhotoBlob({ id: blobId, blob: compressed, fileName })
+      updateCuadrante(preventivoId, {
+        fotoPlano: {
+          previewUrl: URL.createObjectURL(compressed),
+          fileName,
+          blobId,
+          capturedAt: new Date().toISOString(),
+          annotated: false,
+        },
+      })
+      onSave?.()
+    } finally {
+      setLoadingPlano(false)
+      if (e.target) e.target.value = ''
+    }
+  }
+
+  async function handleRemovePlano() {
+    if (cuadrante.fotoPlano?.blobId) await deletePhotoBlob(cuadrante.fotoPlano.blobId).catch(() => {})
+    updateCuadrante(preventivoId, { fotoPlano: undefined })
+    onSave?.()
   }
 
   return (
-    <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-5">
-      <h2 className="text-sm font-semibold text-brand-400 uppercase tracking-wide">
-        📍 Información de Cuadrante
-      </h2>
+    <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-4">
+      <h2 className="text-sm font-semibold text-brand-400 uppercase tracking-wide">📍 Cuadrante</h2>
 
-      {/* ── Obligatorios ─────────────────────────────────────── */}
-      <div className="space-y-3">
-        <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-          Obligatorio
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Comuna" required span={1}>
-            <input
-              type="text"
-              value={cuadrante.comuna}
-              onChange={(e) => set('comuna', e.target.value)}
-              placeholder="Ej. San Marcos"
-              className={inputCls}
-            />
-          </Field>
-
-          <Field label="Cuadrante" required span={1}>
-            <input
-              type="text"
-              value={cuadrante.cuadrante}
-              onChange={(e) => set('cuadrante', e.target.value)}
-              placeholder="Ej. C-042"
-              className={inputCls}
-            />
-          </Field>
+      {/* Técnico: N° cuadrante + comuna */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">N° Cuadrante <span className="text-red-400">*</span></label>
+          <input type="text" value={cuadrante.cuadrante}
+            onChange={(e) => set('cuadrante', e.target.value)}
+            placeholder="Ej. C-042" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Comuna <span className="text-red-400">*</span></label>
+          <input type="text" value={cuadrante.comuna}
+            onChange={(e) => set('comuna', e.target.value)}
+            placeholder="Ej. Providencia" className={inputCls} />
         </div>
       </div>
 
-      {/* Divisor */}
-      <div className="border-t border-slate-700" />
+      {/* Foto del plano */}
+      <div>
+        <label className="block text-xs text-slate-400 mb-2">📐 Foto del plano de trabajo</label>
+        {cuadrante.fotoPlano?.previewUrl ? (
+          <div className="relative rounded-xl overflow-hidden border-2 border-slate-600">
+            <img src={cuadrante.fotoPlano.previewUrl} alt="Plano"
+              className="w-full max-h-56 object-contain bg-slate-900" />
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 flex items-center justify-between">
+              <span className="text-xs text-white">📐 Plano</span>
+              <button type="button" onClick={handleRemovePlano}
+                className="text-red-400 text-xs font-bold hover:text-red-300">✕ Quitar</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button"
+            onClick={() => planoInputRef.current?.click()}
+            disabled={loadingPlano}
+            className="w-full h-24 rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/50 flex flex-col items-center justify-center gap-1 hover:border-brand-500 hover:bg-slate-700/50 transition-colors disabled:opacity-50">
+            {loadingPlano
+              ? <span className="animate-spin text-xl">⏳</span>
+              : <><span className="text-2xl">📐</span><span className="text-xs text-slate-400">Agregar foto del plano</span></>
+            }
+          </button>
+        )}
+        <input ref={planoInputRef} type="file" accept="image/*" capture="environment"
+          className="hidden" onChange={handlePlanoCapture} />
+      </div>
 
-      {/* ── Opcionales ───────────────────────────────────────── */}
-      <div className="space-y-3">
-        <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-          Opcional
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Fecha" span={1}>
-            <input
-              type="date"
-              value={cuadrante.fecha}
-              onChange={(e) => set('fecha', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-
-          <Field label="Semana" span={1}>
-            <input
-              type="text"
-              value={cuadrante.semana}
-              onChange={(e) => set('semana', e.target.value)}
-              placeholder="Ej. Semana 24"
-              className={inputCls}
-            />
-          </Field>
+      {/* JP: campos adicionales */}
+      {role === 'jp' && (
+        <div className="space-y-3 pt-2 border-t border-slate-700">
+          <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Detalles del cuadrante (JP)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Fecha</label>
+              <input type="date" value={cuadrante.fecha}
+                onChange={(e) => set('fecha', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Semana</label>
+              <input type="text" value={cuadrante.semana}
+                onChange={(e) => set('semana', e.target.value)}
+                placeholder="Ej. Semana 24" className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Nombre del cuadrante</label>
+            <input type="text" value={cuadrante.nombreCuadrante}
+              onChange={(e) => set('nombreCuadrante', e.target.value)}
+              placeholder="Ej. Norte Centro Histórico" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Dirección</label>
+            <input type="text" value={cuadrante.direccion}
+              onChange={(e) => set('direccion', e.target.value)}
+              placeholder="Ej. 6a Av. 0-60, zona 1" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Zona</label>
+            <input type="text" value={cuadrante.zona}
+              onChange={(e) => set('zona', e.target.value)}
+              placeholder="Ej. Zona 1" className={inputCls} />
+          </div>
         </div>
-
-        <Field label="Nombre cuadrante">
-          <input
-            type="text"
-            value={cuadrante.nombreCuadrante}
-            onChange={(e) => set('nombreCuadrante', e.target.value)}
-            placeholder="Ej. Norte Centro Histórico"
-            className={inputCls}
-          />
-        </Field>
-
-        <Field label="Dirección">
-          <input
-            type="text"
-            value={cuadrante.direccion}
-            onChange={(e) => set('direccion', e.target.value)}
-            placeholder="Ej. 6a Av. 0-60, zona 1"
-            className={inputCls}
-          />
-        </Field>
-
-        <Field label="Zona">
-          <input
-            type="text"
-            value={cuadrante.zona}
-            onChange={(e) => set('zona', e.target.value)}
-            placeholder="Ej. Zona 1"
-            className={inputCls}
-          />
-        </Field>
-      </div>
-
-      {/* Guardar cuadrante */}
-      <div className="flex justify-end pt-1">
-        <SaveButton onSave={onSave} label="Guardar cuadrante" />
-      </div>
-    </div>
-  )
-}
-
-const inputCls =
-  'w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:border-brand-500 focus:outline-none placeholder-slate-500'
-
-function Field({
-  label,
-  required,
-  span,
-  children,
-}: {
-  label: string
-  required?: boolean
-  span?: number
-  children: React.ReactNode
-}) {
-  return (
-    <div className={span === 1 ? '' : 'col-span-2'}>
-      <label className="block text-xs text-slate-400 mb-1">
-        {label}
-        {required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {children}
+      )}
     </div>
   )
 }

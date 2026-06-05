@@ -10,12 +10,12 @@ export async function getPhotoBlob(id: string): Promise<PhotoBlobEntry | undefin
   return db.get('photoBlobs', id)
 }
 
-export async function getPhotoBlobsByPreventivo(preventivoId: string): Promise<PhotoBlobEntry[]> {
-  const db = await getDB()
-  return db.getAllFromIndex('photoBlobs', 'byPreventivo', preventivoId)
-}
-
 export async function deletePhotoBlob(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('photoBlobs', id)
+}
+
+export async function getAllPhotoBlobs(): Promise<PhotoBlobEntry[]> {
+  const db = await getDB()
+  return db.getAll('photoBlobs')
 }

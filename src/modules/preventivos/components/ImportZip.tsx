@@ -1,0 +1,53 @@
+﻿import { useRef, useState } from 'react'
+import JSZip from 'jszip'
+import { usePreventivoStore } from '../store'
+import { savePhotoBlob } from '@/core/offline/photoStore'
+import { nanoid } from '@/core/utils/nanoid'
+import type { Preventivo, FotoEntry } from '../types'
+
+interface Props { onImported: (id: string) => void }
+
+export function ImportZip({ onImported }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [state, setState] = useState<'idle'|'loading'|'error'>('idle')
+  const [msg, setMsg] = useState('')
+  const { upsert } = usePreventivoStore()
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    setState('loading'); setMsg('')
+    try {
+      const zip = await JSZip.loadAsync(file)
+      const mf = zip.file('telecom_v1.json'); if (!mf) throw new Error('ZIP inválido: falta telecom_v1.json')
+      const meta = JSON.parse(await mf.async('string'))
+      if (meta.version !== 1) throw new Error('Versión no compatible')
+      const lev = meta.levantamiento
+      async function loadFoto(fm: {fileName:string;capturedAt:string}|null|undefined): Promise<FotoEntry|undefined> {
+        if (!fm?.fileName) return undefined
+        const zf = zip.file(`fotos/${fm.fileName}`); if (!zf) return undefined
+        const blob = await zf.async('blob'); const blobId = nanoid()
+        await savePhotoBlob({ id:blobId, blob, fileName:fm.fileName })
+        return { previewUrl:URL.createObjectURL(blob), fileName:fm.fileName, blobId, capturedAt:fm.capturedAt||new Date().toISOString(), annotated:false }
+      }
+      const now = Date.now()
+      const p: Preventivo = {
+        id: lev.id||nanoid(), createdAt:lev.createdAt||now, updatedAt:now,
+        cuadrante: { cuadrante:lev.cuadrante.cuadrante||'', comuna:lev.cuadrante.comuna||'', fecha:lev.cuadrante.fecha||'', semana:lev.cuadrante.semana||'', nombreCuadrante:lev.cuadrante.nombreCuadrante||'', direccion:lev.cuadrante.direccion||'', zona:lev.cuadrante.zona||'', fotoPlano:await loadFoto(lev.cuadrante.fotoPlano) },
+        puntos: await Promise.all((lev.puntos||[]).map(async (pt: any) => ({ id:pt.id||nanoid(), nombre:pt.nombre||'', descripcion:pt.descripcion||'', direccion:pt.direccion||'', correccion:pt.correccion||'', fotoLevantamiento:await loadFoto(pt.fotos?.levantamiento), fotoAntes:await loadFoto(pt.fotos?.antes), fotoDespues:await loadFoto(pt.fotos?.despues) })))
+      }
+      upsert(p); onImported(p.id)
+    } catch(err) { setMsg(err instanceof Error?err.message:'Error al importar'); setState('error') }
+    if (e.target) e.target.value = ''
+  }
+
+  return (
+    <div>
+      <button type="button" onClick={()=>fileRef.current?.click()} disabled={state==='loading'}
+        className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+        {state==='loading'?'⏳ Importando…':'📥 Importar ZIP'}
+      </button>
+      {state==='error'&&<p className="text-red-400 text-xs mt-1.5">❌ {msg}</p>}
+      <input ref={fileRef} type="file" accept=".zip" className="hidden" onChange={handleFile} />
+    </div>
+  )
+}
