@@ -8,13 +8,12 @@ import type { CuadranteInfo } from '../types'
 interface Props {
   preventivoId: string
   cuadrante: CuadranteInfo
-  role: 'tecnico' | 'jp'
   onSave?: () => void
 }
 
 const inputCls = 'w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:border-brand-500 focus:outline-none placeholder-slate-500'
 
-export function CuadranteSection({ preventivoId, cuadrante, role, onSave }: Props) {
+export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
   const { updateCuadrante } = usePreventivoStore()
   const planoInputRef = useRef<HTMLInputElement>(null)
   const [loadingPlano, setLoadingPlano] = useState(false)
@@ -61,7 +60,6 @@ export function CuadranteSection({ preventivoId, cuadrante, role, onSave }: Prop
     <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-4">
       <h2 className="text-sm font-semibold text-brand-400 uppercase tracking-wide">📍 Cuadrante</h2>
 
-      {/* Técnico: N° cuadrante + comuna */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-slate-400 mb-1">N° Cuadrante <span className="text-red-400">*</span></label>
@@ -77,7 +75,6 @@ export function CuadranteSection({ preventivoId, cuadrante, role, onSave }: Prop
         </div>
       </div>
 
-      {/* Foto del plano */}
       <div>
         <label className="block text-xs text-slate-400 mb-2">📐 Foto del plano de trabajo</label>
         {cuadrante.fotoPlano?.previewUrl ? (
@@ -105,43 +102,39 @@ export function CuadranteSection({ preventivoId, cuadrante, role, onSave }: Prop
           className="hidden" onChange={handlePlanoCapture} />
       </div>
 
-      {/* JP: campos adicionales */}
-      {role === 'jp' && (
-        <div className="space-y-3 pt-2 border-t border-slate-700">
-          <p className="text-[11px] text-slate-500 uppercase tracking-wider font-medium">Detalles del cuadrante (JP)</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Fecha</label>
-              <input type="date" value={cuadrante.fecha}
-                onChange={(e) => set('fecha', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Semana</label>
-              <input type="text" value={cuadrante.semana}
-                onChange={(e) => set('semana', e.target.value)}
-                placeholder="Ej. Semana 24" className={inputCls} />
-            </div>
+      <div className="space-y-3 pt-2 border-t border-slate-700">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Fecha</label>
+            <input type="date" value={cuadrante.fecha}
+              onChange={(e) => set('fecha', e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Nombre del cuadrante</label>
-            <input type="text" value={cuadrante.nombreCuadrante}
-              onChange={(e) => set('nombreCuadrante', e.target.value)}
-              placeholder="Ej. Norte Centro Histórico" className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Dirección</label>
-            <input type="text" value={cuadrante.direccion}
-              onChange={(e) => set('direccion', e.target.value)}
-              placeholder="Ej. 6a Av. 0-60, zona 1" className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Zona</label>
-            <input type="text" value={cuadrante.zona}
-              onChange={(e) => set('zona', e.target.value)}
-              placeholder="Ej. Zona 1" className={inputCls} />
+            <label className="block text-xs text-slate-400 mb-1">Semana</label>
+            <input type="text" value={cuadrante.semana}
+              onChange={(e) => set('semana', e.target.value)}
+              placeholder="Ej. Semana 24" className={inputCls} />
           </div>
         </div>
-      )}
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Nombre del cuadrante</label>
+          <input type="text" value={cuadrante.nombreCuadrante}
+            onChange={(e) => set('nombreCuadrante', e.target.value)}
+            placeholder="Ej. Norte Centro Histórico" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Dirección</label>
+          <input type="text" value={cuadrante.direccion}
+            onChange={(e) => set('direccion', e.target.value)}
+            placeholder="Ej. 6a Av. 0-60, zona 1" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Zona</label>
+          <input type="text" value={cuadrante.zona}
+            onChange={(e) => set('zona', e.target.value)}
+            placeholder="Ej. Zona 1" className={inputCls} />
+        </div>
+      </div>
     </div>
   )
 }

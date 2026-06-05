@@ -1,13 +1,11 @@
 import { useNavigate } from 'react-router-dom'
 import { usePreventivoStore } from '../store'
-import { getRole } from '@/core/role'
 import { ImportZip } from './ImportZip'
 import type { Preventivo } from '../types'
 
 export function Home() {
   const navigate = useNavigate()
   const { records, createNew, remove } = usePreventivoStore()
-  const role = getRole()
   const list = Object.values(records).sort((a, b) => b.updatedAt - a.updatedAt)
 
   function handleNew() {
@@ -19,35 +17,27 @@ export function Home() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-white">
-            {role === 'jp' ? '💼 Jefe de Proyecto' : '📡 Técnico — Levantamientos'}
-          </h1>
+          <h1 className="text-lg font-bold text-white">📡 Levantamientos</h1>
           <p className="text-xs text-slate-400">{list.length} levantamiento(s)</p>
         </div>
-        {role === 'tecnico' && (
-          <button type="button" onClick={handleNew}
-            className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">
-            ➕ Nuevo
-          </button>
-        )}
+        <button type="button" onClick={handleNew}
+          className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-3 py-2 rounded-xl">
+          ➕ Nuevo
+        </button>
       </div>
 
-      {role === 'jp' && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-2">
-          <p className="text-sm font-medium text-white">Importar ZIP del técnico</p>
-          <ImportZip onImported={(id) => navigate(`/preventivos/${id}`)} />
-          <p className="text-[10px] text-amber-400/80">
-            ⚠ En WhatsApp: enviar como <strong>Documento</strong> (clip 📎), no como imagen
-          </p>
-        </div>
-      )}
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-2">
+        <p className="text-sm font-medium text-white">Importar ZIP existente</p>
+        <ImportZip onImported={(id) => navigate(`/preventivos/${id}`)} />
+        <p className="text-[10px] text-amber-400/80">
+          ⚠ En WhatsApp: enviar como <strong>Documento</strong> (clip 📎), no como imagen
+        </p>
+      </div>
 
       {list.length === 0 ? (
         <div className="text-center py-16 text-slate-500 space-y-2">
-          <div className="text-5xl">{role === 'jp' ? '📥' : '🔌'}</div>
-          <p className="text-sm">
-            {role === 'jp' ? 'Importa un ZIP para comenzar.' : 'Crea tu primer levantamiento.'}
-          </p>
+          <div className="text-5xl">🔌</div>
+          <p className="text-sm">Crea tu primer levantamiento o importa un ZIP.</p>
         </div>
       ) : (
         <div className="space-y-3">

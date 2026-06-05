@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { PhotoCapture } from './PhotoCapture'
-import { SaveButton } from '@/ui/SaveButton'
 import { usePreventivoStore } from '../store'
 import type { Punto, FotoKey } from '../types'
 
@@ -13,7 +12,7 @@ interface Props {
   onPhotoCapture: (file: File, key: FotoKey) => Promise<void>
 }
 
-export function PuntoCard({ preventivoId, punto, index, editable = true, onSave, onPhotoCapture }: Props) {
+export function PuntoCard({ preventivoId, punto, index, editable = true, onPhotoCapture }: Props) {
   const { updatePunto, removePunto, removeFoto } = usePreventivoStore()
   const [expanded, setExpanded] = useState(true)
 
@@ -28,13 +27,12 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
 
   return (
     <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-      {/* Header — muestra nombre editable inline */}
+      {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5">
         <span className="bg-brand-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0">
           {index + 1}
         </span>
 
-        {/* Nombre del punto — editable inline */}
         {editable ? (
           <input
             type="text"
@@ -50,7 +48,6 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
           </span>
         )}
 
-        {/* Indicador de fotos */}
         {fotosSubidas > 0 && (
           <span className="text-[10px] text-slate-500 shrink-0">📷 {fotosSubidas}/3</span>
         )}
@@ -79,7 +76,6 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t border-slate-700 pt-3">
 
-          {/* Descripción — obligatorio */}
           <div>
             <label className="block text-xs text-slate-400 mb-1">
               Descripción <span className="text-red-400">*</span>
@@ -94,7 +90,6 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
             />
           </div>
 
-          {/* Dirección — obligatorio */}
           <div>
             <label className="block text-xs text-slate-400 mb-1">
               Dirección / Ubicación <span className="text-red-400">*</span>
@@ -109,7 +104,6 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
             />
           </div>
 
-          {/* Corrección — opcional */}
           <div>
             <label className="block text-xs text-slate-400 mb-1">Corrección</label>
             <input
@@ -122,7 +116,6 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
             />
           </div>
 
-          {/* Fotos */}
           <div>
             <label className="block text-xs text-slate-400 mb-2">Fotografías</label>
             <div className="grid grid-cols-3 gap-2">
@@ -138,13 +131,6 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onSave,
               ))}
             </div>
           </div>
-
-          {/* Guardar punto */}
-          {editable && (
-            <div className="flex justify-end pt-1 border-t border-slate-700">
-              <SaveButton onSave={onSave} label={`Guardar punto ${index + 1}`} />
-            </div>
-          )}
         </div>
       )}
     </div>
