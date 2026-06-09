@@ -59,6 +59,7 @@ export function ExportZipButton({ preventivo }: Props) {
   const [shareDone,  setShareDone]  = useState(false)
   const [saveState,  setSaveState]  = useState<'idle' | 'loading' | 'done'>('idle')
   const [errorMsg,   setErrorMsg]   = useState('')
+  const [debugMsg,   setDebugMsg]   = useState('')  // diagnóstico en pantalla (v0.11)
 
   // Refs para evitar closures obsoletos y await antes de share()
   const prebuildFileRef = useRef<File | null>(null)
@@ -109,6 +110,22 @@ export function ExportZipButton({ preventivo }: Props) {
   function handleShare() {
     if (isBuilding || shareDone || saveState === 'loading') return
 
+    // ── Diagnóstico (v0.11): capturar estado en el instante del tap ──────────
+    const ua = (navigator as any).userActivation
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as any).standalone === true
+    const file = prebuildFileRef.current
+    const canShareFiles = file && navigator.canShare
+      ? navigator.canShare({ files: [file] })
+      : 'n/a'
+    const diag =
+      `act=${ua?.isActive} been=${ua?.hasBeenActive} ` +
+      `standalone=${standalone} canShareFiles=${canShareFiles} ` +
+      `secure=${window.isSecureContext}`
+    setDebugMsg(diag)
+    console.log('[TelecomCatalog] share diag:', diag)
+
     if (!window.isSecureContext) {
       showError('⚠️ Necesita HTTPS — abre desde GitHub Pages')
       return
@@ -117,8 +134,6 @@ export function ExportZipButton({ preventivo }: Props) {
       showError('⚠️ Abre en Chrome o Safari para compartir')
       return
     }
-
-    const file = prebuildFileRef.current
     if (!file) {
       showError('⚠️ ZIP aún no está listo — espera un momento')
       return
@@ -132,7 +147,7 @@ export function ExportZipButton({ preventivo }: Props) {
     }
 
     if (navigator.canShare && !navigator.canShare(shareData)) {
-      showError('⚠️ Este dispositivo no permite compartir archivos — usa "Guardar archivo"')
+      showError('⚠️ canShare(full)=false — el payload (title/text/files) no es compartible')
       return
     }
 
@@ -140,10 +155,11 @@ export function ExportZipButton({ preventivo }: Props) {
       setShareDone(true)
       setTimeout(() => setShareDone(false), 3000)
     }).catch((err: Error) => {
-      const ua = (navigator as any).userActivation
-      console.warn('[TelecomCatalog] share error:', err.name, 'ua.isActive:', ua?.isActive)
+      const ua2 = (navigator as any).userActivation
+      console.warn('[TelecomCatalog] share error:', err.name, err.message)
+      setDebugMsg(`${diag} → ERR ${err.name} act2=${ua2?.isActive}`)
       if (err.name !== 'AbortError') {
-        showError(`⚠️ Error al compartir (${err.name}) — usa "Guardar archivo"`)
+        showError(`⚠️ ${err.name}: ${err.message || 's/d'} — usa "Guardar archivo"`)
       }
     })
   }
@@ -215,6 +231,15 @@ export function ExportZipButton({ preventivo }: Props) {
         <p className="text-[10px] text-slate-500">
           ⚠ En WhatsApp: enviar como <strong>Documento</strong>
         </p>
+      )}
+
+      {/* Diagnóstico temporal (v0.11) — quitar cuando share funcione */}
+      {debugMsg && (
+        <div className="max-w-[240px] text-[9px] font-mono text-cyan-200 bg-slate-800 border border-cyan-800/50 px-2 py-1.5 rounded-lg break-all leading-snug">
+          {debugMsg}
+          <button type="button" onClick={() => setDebugMsg('')}
+            className="ml-1 text-cyan-400 font-bold">×</button>
+        </div>
       )}
     </div>
   )
