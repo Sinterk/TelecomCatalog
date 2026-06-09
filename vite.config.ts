@@ -15,8 +15,16 @@ function loadCerts() {
 }
 const https = loadCerts()
 
+// Versión visible en la UI. Súbela en cada deploy para verificar (junto al
+// timestamp de build) que el service worker realmente cargó el bundle nuevo.
+const APP_VERSION = 'v0.10'
+
 export default defineConfig({
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({
