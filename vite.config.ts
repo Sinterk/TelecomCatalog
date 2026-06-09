@@ -1,14 +1,24 @@
+import fs from 'fs'
+import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import basicSsl from '@vitejs/plugin-basic-ssl'
+
+// Carga el certificado mkcert si existe; si no, Vite usa HTTP normal
+function loadCerts() {
+  const key  = path.resolve(__dirname, 'certs/local-key.pem')
+  const cert = path.resolve(__dirname, 'certs/local-cert.pem')
+  if (fs.existsSync(key) && fs.existsSync(cert)) {
+    return { key: fs.readFileSync(key), cert: fs.readFileSync(cert) }
+  }
+  return undefined
+}
+const https = loadCerts()
 
 export default defineConfig({
   base: './',
   plugins: [
     react(),
-    // Habilita HTTPS con certificado autofirmado en dev y preview
-    basicSsl(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
@@ -26,12 +36,7 @@ export default defineConfig({
         lang: 'es',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          {
-            src: 'icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
       workbox: {
@@ -44,13 +49,7 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    host: true,   // expone en red local con npm run dev
-  },
-  preview: {
-    host: true,   // expone en red local con vite preview
-  },
-  resolve: {
-    alias: { '@': '/src' },
-  },
+  server:  { host: true, https },
+  preview: { host: true, https },
+  resolve: { alias: { '@': '/src' } },
 })

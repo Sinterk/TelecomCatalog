@@ -7,3 +7,6 @@ proxy-server/service-account.json
 
 # Local Netlify folder
 .netlify
+
+# Certificados locales mkcert (nunca commitear claves privadas)
+certs/

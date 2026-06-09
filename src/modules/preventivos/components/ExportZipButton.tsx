@@ -71,12 +71,18 @@ export function ExportZipButton({ preventivo }: Props) {
   async function handleShare() {
     // 1. ¿Contexto seguro? (HTTPS o localhost)
     if (!window.isSecureContext) {
-      showShareError('⚠️ Abre la app con HTTPS')
+      showShareError('⚠️ Necesita HTTPS — usa GitHub Pages')
       return
     }
     // 2. ¿El navegador tiene Share API?
     if (!('share' in navigator)) {
-      showShareError('⚠️ Usa Chrome en el celular')
+      showShareError('⚠️ Navegador no compatible — usa Chrome')
+      return
+    }
+    // 3. ¿El navegador soporta compartir archivos? (Firefox Android no lo soporta)
+    const probe = new File([''], 'test.zip', { type: 'application/zip' })
+    if (navigator.canShare && !navigator.canShare({ files: [probe] })) {
+      showShareError('⚠️ Firefox no soporta archivos — usa Chrome')
       return
     }
     setShareState('loading')
@@ -94,8 +100,7 @@ export function ExportZipButton({ preventivo }: Props) {
       const name = (err as Error).name
       console.warn('Share error:', name, err)
       if (name === 'AbortError') { setShareState('idle'); return }
-      // Contexto seguro pero el SO/navegador rechazó el archivo
-      showShareError('⚠️ No disponible aquí, usa Guardar')
+      showShareError(`⚠️ Error: ${name} — usa Guardar`)
     }
   }
 
