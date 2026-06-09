@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import JSZip from 'jszip'
 import { getPhotoBlob } from '@/core/offline/photoStore'
 import type { Preventivo, FotoKey } from '../types'
@@ -52,94 +52,85 @@ async function buildZip(preventivo: Preventivo): Promise<{ blob: Blob; fileName:
   return { blob, fileName }
 }
 
-type ShareState = 'idle' | 'preparing' | 'ready' | 'done' | 'error'
-
+// ── Componente ────────────────────────────────────────────────────────────────
 export function ExportZipButton({ preventivo }: Props) {
-  const [shareState, setShareState] = useState<ShareState>('idle')
-  const [saveState,  setSaveState]  = useState<'idle' | 'loading' | 'done'>('idle')
-  const [shareMsg,   setShareMsg]   = useState('')
-  const [readyFile,  setReadyFile]  = useState<File | null>(null)
+  // ZIP pre-construido en segundo plano — listo antes de que el usuario toque
+  const [prebuildFile, setPrebuildFile] = useState<File | null>(null)
+  const [isBuilding,   setIsBuilding]   = useState(false)
+  const [shareDone,    setShareDone]    = useState(false)
+  const [saveState,    setSaveState]    = useState<'idle' | 'loading' | 'done'>('idle')
+  const [errorMsg,     setErrorMsg]     = useState('')
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const busy = shareState === 'preparing' || saveState === 'loading'
-
-  // Invalidar ZIP cacheado si los datos cambian mientras esperamos
+  // Construir ZIP en segundo plano cada vez que los datos cambian (debounce 1 s).
+  // Objetivo: cuando el usuario presione "Compartir", el archivo ya está listo
+  // y navigator.share() se puede llamar inmediatamente, sin ningún await previo
+  // que agote el transient activation de Chrome Android.
   useEffect(() => {
-    if (!readyFile) return
-    setReadyFile(null)
-    if (shareState === 'ready') setShareState('idle')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setPrebuildFile(null)
+    let cancelled = false
+
+    const timer = setTimeout(async () => {
+      setIsBuilding(true)
+      try {
+        const { blob, fileName } = await buildZip(preventivo)
+        if (cancelled) return
+        setPrebuildFile(new File([blob], fileName, { type: 'application/zip' }))
+      } catch (err) {
+        console.error('[TelecomCatalog] prebuild error:', err)
+      } finally {
+        if (!cancelled) setIsBuilding(false)
+      }
+    }, 1000)
+
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [preventivo.updatedAt])
 
-  // Auto-cancelar 'ready' después de 15 s
-  useEffect(() => {
-    if (shareState !== 'ready') return
-    const t = setTimeout(() => { setShareState('idle'); setReadyFile(null) }, 15_000)
-    return () => clearTimeout(t)
-  }, [shareState])
-
-  function showShareError(msg: string) {
-    setShareMsg(msg); setShareState('error'); setReadyFile(null)
-    setTimeout(() => { setShareState('idle'); setShareMsg('') }, 5000)
+  function showError(msg: string) {
+    if (errorTimer.current) clearTimeout(errorTimer.current)
+    setErrorMsg(msg)
+    errorTimer.current = setTimeout(() => setErrorMsg(''), 8000)
   }
 
-  // ── Paso 1: construir ZIP (onClick — no necesita gesto activo) ────────────
-  async function handleClick() {
-    // Paso 2 lo gestiona onPointerDown; aquí solo hacemos Paso 1
-    if (shareState === 'ready') return
+  // ── Compartir (onPointerDown = gesto más temprano, antes del click) ────────
+  function handleSharePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (isBuilding || shareDone || saveState === 'loading') return
 
-    if (!window.isSecureContext) { showShareError('⚠️ Necesita HTTPS — abre desde GitHub Pages'); return }
-    if (!('share' in navigator))  { showShareError('⚠️ Abre en Chrome o Safari para compartir'); return }
-
-    setShareState('preparing')
-    try {
-      const { blob, fileName } = await buildZip(preventivo)
-      const file = new File([blob], fileName, { type: 'application/zip' })
-      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
-        showShareError('⚠️ Este navegador no comparte archivos — usa "Guardar"')
-        return
-      }
-      setReadyFile(file)
-      setShareState('ready')
-    } catch (err) {
-      console.error('[TelecomCatalog] buildZip error:', err)
-      showShareError('⚠️ Error al preparar ZIP — intenta de nuevo')
+    if (!window.isSecureContext) {
+      showError('⚠️ Necesita HTTPS — abre desde GitHub Pages')
+      return
     }
-  }
+    if (!('share' in navigator)) {
+      showError('⚠️ Abre en Chrome o Safari para compartir')
+      return
+    }
+    if (!prebuildFile) {
+      showError('⚠️ ZIP aún no está listo — espera un momento e intenta de nuevo')
+      return
+    }
+    if (navigator.canShare && !navigator.canShare({ files: [prebuildFile] })) {
+      showError('⚠️ Este navegador no puede compartir archivos — usa "Guardar archivo"')
+      return
+    }
 
-  // ── Paso 2: compartir (onPointerDown — gesto más temprano y directo) ──────
-  //
-  // Por qué onPointerDown en vez de onClick:
-  //   Chrome Android crea el "transient activation" (user gesture token) en
-  //   touchstart/pointerdown, mucho antes de que dispare click. React delega
-  //   onClick al root del DOM; para cuando el evento llega al handler el token
-  //   puede estar invalidado. onPointerDown captura el gesto en su origen.
-  //
-  //   Además, animate-pulse impide que algunos Chrome Android registren el tap
-  //   como gesto válido; el botón 'ready' usa color estático (sin animación).
-  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (shareState !== 'ready' || !readyFile) return
-    e.preventDefault() // Evita que dispare click después
-
-    const file = readyFile
-    setReadyFile(null)
-    setShareState('idle')
+    e.preventDefault() // evita que dispare click después
+    const file = prebuildFile
 
     const ua = (navigator as any).userActivation
-    console.log('[TelecomCatalog] share via pointerDown, ua.isActive:', ua?.isActive)
+    console.log('[TelecomCatalog] share pointerDown, ua.isActive:', ua?.isActive)
 
     navigator.share({
       files: [file],
       title: `TelecomCatalog — ${preventivo.cuadrante.cuadrante || 'Levantamiento'}`,
       text: [preventivo.cuadrante.cuadrante, preventivo.cuadrante.comuna].filter(Boolean).join(' — '),
     }).then(() => {
-      setShareState('done')
-      setTimeout(() => setShareState('idle'), 2500)
+      setShareDone(true)
+      setTimeout(() => setShareDone(false), 3000)
     }).catch((err: Error) => {
-      const name = err.name
       const ua2 = (navigator as any).userActivation
-      console.warn('[TelecomCatalog] share error:', name, 'ua.isActive:', ua2?.isActive)
-      if (name === 'AbortError') { setShareState('idle'); return }
-      showShareError(`⚠️ Error al compartir (${name}, ua=${ua2?.isActive}) — usa "Guardar"`)
+      console.warn('[TelecomCatalog] share error:', err.name, 'ua.isActive:', ua2?.isActive)
+      if (err.name === 'AbortError') return
+      showError(`⚠️ Error al compartir (${err.name}, ua=${ua2?.isActive}) — usa "Guardar archivo"`)
     })
   }
 
@@ -160,36 +151,38 @@ export function ExportZipButton({ preventivo }: Props) {
     }
   }
 
-  // ── Etiquetas y estilos ───────────────────────────────────────────────────
   const shareLabel =
-    shareState === 'preparing' ? '⏳ Preparando…'      :
-    shareState === 'ready'     ? '📲 Toca para enviar' :
-    shareState === 'done'      ? '✅ Compartido'        :
-    shareState === 'error'     ? shareMsg               :
+    isBuilding ? '⏳ Preparando…' :
+    shareDone  ? '✅ Compartido'  :
     '📤 Compartir ZIP'
 
-  // Sin animate-pulse en 'ready': Chrome Android no registra taps en elementos
-  // con CSS animations activas como gestos válidos en algunas versiones.
   const shareClass =
-    shareState === 'done'  ? 'bg-green-700 text-white'        :
-    shareState === 'ready' ? 'bg-emerald-300 text-slate-900'  :
-    shareState === 'error' ? 'bg-amber-700/80 text-amber-100' :
+    isBuilding ? 'bg-emerald-700/50 text-white cursor-wait' :
+    shareDone  ? 'bg-green-700 text-white'                   :
     'bg-emerald-700 hover:bg-emerald-600 text-white'
 
   return (
     <div className="flex flex-col items-end gap-1.5 shrink-0">
 
+      {/* Error persistente con botón de cierre */}
+      {errorMsg && (
+        <div className="max-w-[220px] text-[11px] text-amber-200 bg-amber-900/80 border border-amber-700/60 px-2.5 py-2 rounded-lg flex items-start gap-2">
+          <span className="flex-1 leading-snug">{errorMsg}</span>
+          <button type="button" onClick={() => setErrorMsg('')}
+            className="text-amber-300 hover:text-white font-bold text-base leading-none shrink-0">×</button>
+        </div>
+      )}
+
       <button
         type="button"
-        onPointerDown={handlePointerDown}
-        onClick={handleClick}
-        disabled={busy}
+        onPointerDown={handleSharePointerDown}
+        disabled={isBuilding || shareDone || saveState === 'loading'}
         className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60 ${shareClass}`}
       >
         {shareLabel}
       </button>
 
-      <button type="button" onClick={handleSave} disabled={busy}
+      <button type="button" onClick={handleSave} disabled={saveState === 'loading'}
         className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 ${
           saveState === 'done' ? 'bg-slate-600 text-green-300' :
           'bg-slate-700 hover:bg-slate-600 text-slate-300'
