@@ -58,14 +58,25 @@ export function ExportZipButton({ preventivo }: Props) {
   const [shareState, setShareState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [saveState,  setSaveState]  = useState<'idle' | 'loading' | 'done'>('idle')
 
+  const [shareMsg, setShareMsg] = useState('')
   const busy = shareState === 'loading' || saveState === 'loading'
+
+  function showShareError(msg: string) {
+    setShareMsg(msg)
+    setShareState('error')
+    setTimeout(() => { setShareState('idle'); setShareMsg('') }, 4000)
+  }
 
   // ── Botón "Compartir" (Web Share API — móvil) ─────────────────────────────
   async function handleShare() {
-    // Navegador sin Share API (Firefox desktop, etc.) → aviso y cortar
+    // 1. ¿Contexto seguro? (HTTPS o localhost)
+    if (!window.isSecureContext) {
+      showShareError('⚠️ Abre la app con HTTPS')
+      return
+    }
+    // 2. ¿El navegador tiene Share API?
     if (!('share' in navigator)) {
-      setShareState('error')
-      setTimeout(() => setShareState('idle'), 3500)
+      showShareError('⚠️ Usa Chrome en el celular')
       return
     }
     setShareState('loading')
@@ -80,10 +91,11 @@ export function ExportZipButton({ preventivo }: Props) {
       setShareState('done')
       setTimeout(() => setShareState('idle'), 2500)
     } catch (err) {
-      if ((err as Error).name === 'AbortError') { setShareState('idle'); return }
-      // HTTP sin HTTPS, o navegador que no soporta compartir archivos
-      setShareState('error')
-      setTimeout(() => setShareState('idle'), 3500)
+      const name = (err as Error).name
+      console.warn('Share error:', name, err)
+      if (name === 'AbortError') { setShareState('idle'); return }
+      // Contexto seguro pero el SO/navegador rechazó el archivo
+      showShareError('⚠️ No disponible aquí, usa Guardar')
     }
   }
 
@@ -116,7 +128,7 @@ export function ExportZipButton({ preventivo }: Props) {
         }`}>
         {shareState === 'loading' ? '⏳ Preparando…'
           : shareState === 'done'  ? '✅ Compartido'
-          : shareState === 'error' ? '⚠️ Solo funciona con HTTPS'
+          : shareState === 'error' ? shareMsg
           : '📤 Compartir ZIP'}
       </button>
 
