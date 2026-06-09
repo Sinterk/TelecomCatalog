@@ -1,11 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 
 export default defineConfig({
   base: './',
   plugins: [
     react(),
+    // Habilita HTTPS con certificado autofirmado en dev y preview
+    basicSsl(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
@@ -32,18 +35,21 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cachea toda la app shell al instalar
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2}'],
         cleanupOutdatedCaches: true,
-        // Activa el SW nuevo inmediatamente sin esperar a que el usuario cierre tabs
         skipWaiting: true,
         clientsClaim: true,
-        // No intentes cachear rutas externas (proxy, APIs)
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/, /^\/proxy/],
       },
     }),
   ],
+  server: {
+    host: true,   // expone en red local con npm run dev
+  },
+  preview: {
+    host: true,   // expone en red local con vite preview
+  },
   resolve: {
     alias: { '@': '/src' },
   },
