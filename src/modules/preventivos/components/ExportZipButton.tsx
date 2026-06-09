@@ -54,32 +54,41 @@ async function buildZip(preventivo: Preventivo): Promise<{ blob: Blob; fileName:
 
 // ── Componente ────────────────────────────────────────────────────────────────
 export function ExportZipButton({ preventivo }: Props) {
-  // ZIP pre-construido en segundo plano — listo antes de que el usuario toque
-  const [prebuildFile, setPrebuildFile] = useState<File | null>(null)
-  const [isBuilding,   setIsBuilding]   = useState(false)
-  const [shareDone,    setShareDone]    = useState(false)
-  const [saveState,    setSaveState]    = useState<'idle' | 'loading' | 'done'>('idle')
-  const [errorMsg,     setErrorMsg]     = useState('')
-  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // UI state (para renderizado)
+  const [isBuilding, setIsBuilding] = useState(false)
+  const [shareDone,  setShareDone]  = useState(false)
+  const [saveState,  setSaveState]  = useState<'idle' | 'loading' | 'done'>('idle')
+  const [errorMsg,   setErrorMsg]   = useState('')
 
-  // Construir ZIP en segundo plano cada vez que los datos cambian (debounce 1 s).
-  // Objetivo: cuando el usuario presione "Compartir", el archivo ya está listo
-  // y navigator.share() se puede llamar inmediatamente, sin ningún await previo
-  // que agote el transient activation de Chrome Android.
+  // Refs para el handler nativo (sin closures obsoletos)
+  const shareButtonRef  = useRef<HTMLButtonElement>(null)
+  const prebuildFileRef = useRef<File | null>(null)
+  const preventivoRef   = useRef(preventivo)
+  const isBuildingRef   = useRef(false)
+  const shareDoneRef    = useRef(false)
+  const errorTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Mantener refs sincronizados con props/state
+  preventivoRef.current = preventivo
+
+  // ── Pre-construir ZIP en segundo plano (1 s de debounce) ─────────────────
+  // Objetivo: cuando el usuario toque "Compartir", el archivo ya está listo
+  // y navigator.share() se puede llamar sin ningún await intermedio.
   useEffect(() => {
-    setPrebuildFile(null)
+    prebuildFileRef.current = null
     let cancelled = false
 
     const timer = setTimeout(async () => {
+      isBuildingRef.current = true
       setIsBuilding(true)
       try {
         const { blob, fileName } = await buildZip(preventivo)
         if (cancelled) return
-        setPrebuildFile(new File([blob], fileName, { type: 'application/zip' }))
+        prebuildFileRef.current = new File([blob], fileName, { type: 'application/zip' })
       } catch (err) {
         console.error('[TelecomCatalog] prebuild error:', err)
       } finally {
-        if (!cancelled) setIsBuilding(false)
+        if (!cancelled) { isBuildingRef.current = false; setIsBuilding(false) }
       }
     }, 1000)
 
@@ -87,54 +96,74 @@ export function ExportZipButton({ preventivo }: Props) {
   }, [preventivo.updatedAt])
 
   function showError(msg: string) {
-    if (errorTimer.current) clearTimeout(errorTimer.current)
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     setErrorMsg(msg)
-    errorTimer.current = setTimeout(() => setErrorMsg(''), 8000)
+    errorTimerRef.current = setTimeout(() => setErrorMsg(''), 8000)
   }
 
-  // ── Compartir (onPointerDown = gesto más temprano, antes del click) ────────
-  function handleSharePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (isBuilding || shareDone || saveState === 'loading') return
+  // ── Listener nativo de touchstart en el botón ─────────────────────────────
+  //
+  // Por qué nativo y no React (onClick / onPointerDown):
+  //   React 18 delega TODOS los eventos al nodo raíz (#root). Chrome Android
+  //   crea "transient activation" (user gesture) solo para listeners adjuntos
+  //   DIRECTAMENTE al elemento tocado. Con la delegación de React, ua.isActive
+  //   llega como false al handler, y navigator.share() lanza NotAllowedError.
+  //
+  //   Solución: addEventListener directo en el <button> con passive:false
+  //   (permite e.preventDefault() para cancelar el click posterior).
+  useEffect(() => {
+    const btn = shareButtonRef.current
+    if (!btn) return
 
-    if (!window.isSecureContext) {
-      showError('⚠️ Necesita HTTPS — abre desde GitHub Pages')
-      return
+    function onTouchStart(e: TouchEvent) {
+      // Ignorar si el botón está en estado "deshabilitado"
+      if (isBuildingRef.current || shareDoneRef.current) return
+
+      const ua = (navigator as any).userActivation
+      console.log('[TelecomCatalog] touchstart nativo, ua.isActive:', ua?.isActive)
+
+      if (!window.isSecureContext) {
+        showError('⚠️ Necesita HTTPS — abre desde GitHub Pages')
+        return
+      }
+      if (!('share' in navigator)) {
+        showError('⚠️ Abre en Chrome o Safari para compartir')
+        return
+      }
+
+      const file = prebuildFileRef.current
+      if (!file) {
+        showError('⚠️ ZIP aún no está listo — espera un momento')
+        return
+      }
+
+      // e.preventDefault() evita que disparen pointerdown / click después
+      e.preventDefault()
+
+      navigator.share({
+        files: [file],
+        title: `TelecomCatalog — ${preventivoRef.current.cuadrante.cuadrante || 'Levantamiento'}`,
+        text: [preventivoRef.current.cuadrante.cuadrante, preventivoRef.current.cuadrante.comuna]
+          .filter(Boolean).join(' — '),
+      }).then(() => {
+        shareDoneRef.current = true
+        setShareDone(true)
+        setTimeout(() => { shareDoneRef.current = false; setShareDone(false) }, 3000)
+      }).catch((err: Error) => {
+        const ua2 = (navigator as any).userActivation
+        console.warn('[TelecomCatalog] share error:', err.name, 'ua.isActive:', ua2?.isActive)
+        if (err.name !== 'AbortError') {
+          showError(`⚠️ Error al compartir (${err.name}, ua=${ua2?.isActive}) — usa "Guardar archivo"`)
+        }
+      })
     }
-    if (!('share' in navigator)) {
-      showError('⚠️ Abre en Chrome o Safari para compartir')
-      return
-    }
-    if (!prebuildFile) {
-      showError('⚠️ ZIP aún no está listo — espera un momento e intenta de nuevo')
-      return
-    }
-    if (navigator.canShare && !navigator.canShare({ files: [prebuildFile] })) {
-      showError('⚠️ Este navegador no puede compartir archivos — usa "Guardar archivo"')
-      return
-    }
 
-    e.preventDefault() // evita que dispare click después
-    const file = prebuildFile
+    // passive: false permite llamar e.preventDefault()
+    btn.addEventListener('touchstart', onTouchStart, { passive: false })
+    return () => btn.removeEventListener('touchstart', onTouchStart)
+  }, []) // Solo se registra una vez; usa refs para el estado actual
 
-    const ua = (navigator as any).userActivation
-    console.log('[TelecomCatalog] share pointerDown, ua.isActive:', ua?.isActive)
-
-    navigator.share({
-      files: [file],
-      title: `TelecomCatalog — ${preventivo.cuadrante.cuadrante || 'Levantamiento'}`,
-      text: [preventivo.cuadrante.cuadrante, preventivo.cuadrante.comuna].filter(Boolean).join(' — '),
-    }).then(() => {
-      setShareDone(true)
-      setTimeout(() => setShareDone(false), 3000)
-    }).catch((err: Error) => {
-      const ua2 = (navigator as any).userActivation
-      console.warn('[TelecomCatalog] share error:', err.name, 'ua.isActive:', ua2?.isActive)
-      if (err.name === 'AbortError') return
-      showError(`⚠️ Error al compartir (${err.name}, ua=${ua2?.isActive}) — usa "Guardar archivo"`)
-    })
-  }
-
-  // ── Guardar (descarga directa) ─────────────────────────────────────────────
+  // ── Guardar (descarga directa — escritorio / fallback) ────────────────────
   async function handleSave() {
     setSaveState('loading')
     try {
@@ -157,27 +186,31 @@ export function ExportZipButton({ preventivo }: Props) {
     '📤 Compartir ZIP'
 
   const shareClass =
-    isBuilding ? 'bg-emerald-700/50 text-white cursor-wait' :
-    shareDone  ? 'bg-green-700 text-white'                   :
+    isBuilding ? 'bg-emerald-700/50 text-white/60 cursor-wait' :
+    shareDone  ? 'bg-green-700 text-white'                     :
     'bg-emerald-700 hover:bg-emerald-600 text-white'
 
   return (
     <div className="flex flex-col items-end gap-1.5 shrink-0">
 
-      {/* Error persistente con botón de cierre */}
+      {/* Panel de error persistente con botón de cierre */}
       {errorMsg && (
         <div className="max-w-[220px] text-[11px] text-amber-200 bg-amber-900/80 border border-amber-700/60 px-2.5 py-2 rounded-lg flex items-start gap-2">
           <span className="flex-1 leading-snug">{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}
-            className="text-amber-300 hover:text-white font-bold text-base leading-none shrink-0">×</button>
+            className="text-amber-300 hover:text-white font-bold text-base leading-none shrink-0 ml-1">×</button>
         </div>
       )}
 
+      {/*
+        Sin disabled ni onClick — el touchstart nativo gestiona todo.
+        aria-disabled para accesibilidad; la opacidad comunica el estado visual.
+      */}
       <button
+        ref={shareButtonRef}
         type="button"
-        onPointerDown={handleSharePointerDown}
-        disabled={isBuilding || shareDone || saveState === 'loading'}
-        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60 ${shareClass}`}
+        aria-disabled={isBuilding || shareDone || saveState === 'loading'}
+        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${shareClass}`}
       >
         {shareLabel}
       </button>
