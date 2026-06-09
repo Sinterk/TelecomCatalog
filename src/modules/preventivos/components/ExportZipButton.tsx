@@ -62,6 +62,12 @@ export function ExportZipButton({ preventivo }: Props) {
 
   // ── Botón "Compartir" (Web Share API — móvil) ─────────────────────────────
   async function handleShare() {
+    // Navegador sin Share API (Firefox desktop, etc.) → aviso y cortar
+    if (!('share' in navigator)) {
+      setShareState('error')
+      setTimeout(() => setShareState('idle'), 3500)
+      return
+    }
     setShareState('loading')
     try {
       const { blob, fileName } = await buildZip(preventivo)
@@ -75,7 +81,7 @@ export function ExportZipButton({ preventivo }: Props) {
       setTimeout(() => setShareState('idle'), 2500)
     } catch (err) {
       if ((err as Error).name === 'AbortError') { setShareState('idle'); return }
-      // En HTTP o navegadores sin soporte de archivos: mostrar aviso breve
+      // HTTP sin HTTPS, o navegador que no soporta compartir archivos
       setShareState('error')
       setTimeout(() => setShareState('idle'), 3500)
     }
@@ -101,20 +107,18 @@ export function ExportZipButton({ preventivo }: Props) {
   return (
     <div className="flex flex-col items-end gap-1.5 shrink-0">
 
-      {/* Botón principal — Compartir (solo si hay Web Share API) */}
-      {hasShareApi && (
-        <button type="button" onClick={handleShare} disabled={busy}
-          className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60 ${
-            shareState === 'done'  ? 'bg-green-700 text-white' :
-            shareState === 'error' ? 'bg-red-800/80 text-red-200' :
-            'bg-emerald-700 hover:bg-emerald-600 text-white'
-          }`}>
-          {shareState === 'loading' ? '⏳ Preparando…'
-            : shareState === 'done'  ? '✅ Compartido'
-            : shareState === 'error' ? '⚠️ Requiere HTTPS'
-            : '📤 Compartir ZIP'}
-        </button>
-      )}
+      {/* Botón principal — Compartir (siempre visible; el handler gestiona cada caso) */}
+      <button type="button" onClick={handleShare} disabled={busy}
+        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60 ${
+          shareState === 'done'  ? 'bg-green-700 text-white' :
+          shareState === 'error' ? 'bg-amber-700/80 text-amber-100' :
+          'bg-emerald-700 hover:bg-emerald-600 text-white'
+        }`}>
+        {shareState === 'loading' ? '⏳ Preparando…'
+          : shareState === 'done'  ? '✅ Compartido'
+          : shareState === 'error' ? '⚠️ Solo funciona con HTTPS'
+          : '📤 Compartir ZIP'}
+      </button>
 
       {/* Botón secundario — Guardar archivo */}
       <button type="button" onClick={handleSave} disabled={busy}
@@ -127,8 +131,7 @@ export function ExportZipButton({ preventivo }: Props) {
           : '📥 Guardar archivo'}
       </button>
 
-      {/* Aviso para escritorio donde solo aparece Guardar */}
-      {saveState === 'done' && !hasShareApi && (
+      {saveState === 'done' && (
         <p className="text-[10px] text-slate-500">
           ⚠ En WhatsApp: enviar como <strong>Documento</strong>
         </p>
