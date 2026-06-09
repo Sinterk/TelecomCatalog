@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { usePreventivoStore } from '../store'
 import { compressImage } from '@/core/utils/compressImage'
 import { savePhotoBlob, deletePhotoBlob } from '@/core/offline/photoStore'
@@ -17,6 +17,15 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
   const { updateCuadrante } = usePreventivoStore()
   const planoInputRef = useRef<HTMLInputElement>(null)
   const [loadingPlano, setLoadingPlano] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
+
+  // Cerrar lightbox con ESC
+  useEffect(() => {
+    if (!lightbox) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setLightbox(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox])
 
   function set<K extends keyof CuadranteInfo>(key: K, value: CuadranteInfo[K]) {
     updateCuadrante(preventivoId, { [key]: value })
@@ -78,15 +87,49 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
       <div>
         <label className="block text-xs text-slate-400 mb-2">📐 Foto del plano de trabajo</label>
         {cuadrante.fotoPlano?.previewUrl ? (
-          <div className="relative rounded-xl overflow-hidden border-2 border-slate-600">
-            <img src={cuadrante.fotoPlano.previewUrl} alt="Plano"
-              className="w-full max-h-56 object-contain bg-slate-900" />
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 flex items-center justify-between">
-              <span className="text-xs text-white">📐 Plano</span>
-              <button type="button" onClick={handleRemovePlano}
-                className="text-red-400 text-xs font-bold hover:text-red-300">✕ Quitar</button>
+          <>
+            <div className="relative rounded-xl overflow-hidden border-2 border-slate-600">
+              <img
+                src={cuadrante.fotoPlano.previewUrl}
+                alt="Plano"
+                className="w-full max-h-56 object-contain bg-slate-900 cursor-zoom-in"
+                onClick={() => setLightbox(true)}
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 flex items-center justify-between">
+                <span className="text-xs text-white">📐 Plano</span>
+                <button type="button" onClick={handleRemovePlano}
+                  className="text-red-400 text-xs font-bold hover:text-red-300">✕ Quitar</button>
+              </div>
             </div>
-          </div>
+
+            {/* Lightbox del plano */}
+            {lightbox && (
+              <div
+                className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center p-4"
+                onClick={() => setLightbox(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLightbox(false)}
+                  className="absolute top-4 right-4 text-white/60 hover:text-white text-4xl font-light leading-none"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+                <div
+                  className="flex flex-col items-center gap-3 max-w-full max-h-full"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <img
+                    src={cuadrante.fotoPlano.previewUrl}
+                    alt="Plano"
+                    className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+                  />
+                  <span className="text-slate-400 text-sm">📐 Plano de trabajo</span>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <button type="button"
             onClick={() => planoInputRef.current?.click()}
