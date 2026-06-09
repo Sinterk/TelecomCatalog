@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import JSZip from 'jszip'
 import { getPhotoBlob } from '@/core/offline/photoStore'
 import type { Preventivo, FotoKey } from '../types'
@@ -6,7 +6,6 @@ import type { Preventivo, FotoKey } from '../types'
 interface Props { preventivo: Preventivo }
 
 const FOTO_KEYS: FotoKey[] = ['fotoLevantamiento', 'fotoAntes', 'fotoDespues']
-const hasShareApi = typeof navigator !== 'undefined' && 'share' in navigator
 
 // ── Construir el ZIP (compartido por ambos botones) ───────────────────────────
 async function buildZip(preventivo: Preventivo): Promise<{ blob: Blob; fileName: string }> {
@@ -53,64 +52,102 @@ async function buildZip(preventivo: Preventivo): Promise<{ blob: Blob; fileName:
   return { blob, fileName }
 }
 
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+type ShareState = 'idle' | 'preparing' | 'ready' | 'sharing' | 'done' | 'error'
+
 // ── Componente ────────────────────────────────────────────────────────────────
 export function ExportZipButton({ preventivo }: Props) {
-  const [shareState, setShareState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [shareState, setShareState] = useState<ShareState>('idle')
   const [saveState,  setSaveState]  = useState<'idle' | 'loading' | 'done'>('idle')
+  const [shareMsg,   setShareMsg]   = useState('')
 
-  const [shareMsg, setShareMsg] = useState('')
-  const busy = shareState === 'loading' || saveState === 'loading'
+  // El archivo ZIP cacheado entre el paso 1 (preparar) y el paso 2 (compartir)
+  const cachedFile = useRef<File | null>(null)
+
+  const busy = shareState === 'preparing' || shareState === 'sharing' || saveState === 'loading'
+
+  // Invalidar caché si los datos cambian mientras esperamos el segundo tap
+  useEffect(() => {
+    if (!cachedFile.current) return
+    cachedFile.current = null
+    if (shareState === 'ready') setShareState('idle')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preventivo.updatedAt])
+
+  // Auto-cancelar estado 'ready' si el usuario no toca en 12 s
+  useEffect(() => {
+    if (shareState !== 'ready') return
+    const t = setTimeout(() => { setShareState('idle'); cachedFile.current = null }, 12_000)
+    return () => clearTimeout(t)
+  }, [shareState])
 
   function showShareError(msg: string) {
-    setShareMsg(msg)
-    setShareState('error')
+    setShareMsg(msg); setShareState('error'); cachedFile.current = null
     setTimeout(() => { setShareState('idle'); setShareMsg('') }, 4000)
   }
 
-  // ── Botón "Compartir" (Web Share API — móvil) ─────────────────────────────
+  // ── Botón "Compartir" — flujo en 2 pasos para respetar el gesto de usuario ──
+  //
+  // Por qué 2 pasos:
+  //   Chrome Android requiere que navigator.share() se llame dentro de ~5 s
+  //   del tap del usuario (transient activation). buildZip() hace lecturas de
+  //   IndexedDB + compresión y puede tardar más. Si llamamos share() después
+  //   del await, Chrome lanza NotAllowedError.
+  //
+  //   Solución: Paso 1 = construir el ZIP (async, sin share). Cuando está listo
+  //   el botón cambia a "Toca para enviar". Paso 2 = el nuevo tap llama share()
+  //   inmediatamente, con el gesto fresco.
   async function handleShare() {
-    // 1. HTTPS requerido (Share API no funciona en HTTP)
     if (!window.isSecureContext) {
       showShareError('⚠️ Necesita HTTPS — abre desde GitHub Pages')
       return
     }
-    // 2. Navegador debe tener Share API (Chrome/Safari sí; Firefox desktop no)
     if (!('share' in navigator)) {
       showShareError('⚠️ Abre en Chrome o Safari para compartir')
       return
     }
 
-    // Construimos el ZIP primero y luego validamos con el archivo real
-    // (no con un probe vacío que puede dar falsos negativos)
-    setShareState('loading')
+    // ── Paso 2: ZIP ya preparado — llamar share() con gesto fresco ──────────
+    if (cachedFile.current) {
+      if (navigator.canShare && !navigator.canShare({ files: [cachedFile.current] })) {
+        showShareError('⚠️ Este navegador no comparte archivos — usa "Guardar"')
+        return
+      }
+      setShareState('sharing')
+      try {
+        await navigator.share({
+          files: [cachedFile.current],
+          title: `TelecomCatalog — ${preventivo.cuadrante.cuadrante || 'Levantamiento'}`,
+          text: [preventivo.cuadrante.cuadrante, preventivo.cuadrante.comuna].filter(Boolean).join(' — '),
+        })
+        setShareState('done'); cachedFile.current = null
+        setTimeout(() => setShareState('idle'), 2500)
+      } catch (err) {
+        const name = (err as Error).name
+        console.warn('[TelecomCatalog] Share error:', name, err)
+        if (name === 'AbortError') { setShareState('idle'); cachedFile.current = null; return }
+        if (name === 'NotAllowedError') showShareError('⚠️ Permiso denegado — intenta de nuevo')
+        else if (name === 'TypeError')  showShareError('⚠️ Archivo no aceptado — usa "Guardar"')
+        else                            showShareError(`⚠️ Error (${name}) — usa "Guardar"`)
+      }
+      return
+    }
+
+    // ── Paso 1: Construir ZIP (puede tardar, se permite el async aquí) ───────
+    setShareState('preparing')
     try {
       const { blob, fileName } = await buildZip(preventivo)
       const file = new File([blob], fileName, { type: 'application/zip' })
-
-      // 3. Verificar soporte de archivos con el archivo real
+      // Verificar soporte antes de pedir el segundo tap
       if (navigator.canShare && !navigator.canShare({ files: [file] })) {
         showShareError('⚠️ Este navegador no comparte archivos — usa "Guardar"')
         return
       }
-
-      await navigator.share({
-        files: [file],
-        title: `TelecomCatalog — ${preventivo.cuadrante.cuadrante || 'Levantamiento'}`,
-        text: [preventivo.cuadrante.cuadrante, preventivo.cuadrante.comuna].filter(Boolean).join(' — '),
-      })
-      setShareState('done')
-      setTimeout(() => setShareState('idle'), 2500)
+      cachedFile.current = file
+      setShareState('ready') // ← pide segundo tap con gesto fresco
     } catch (err) {
-      const name = (err as Error).name
-      console.warn('[TelecomCatalog] Share error:', name, err)
-      if (name === 'AbortError') { setShareState('idle'); return }
-      if (name === 'NotAllowedError') {
-        showShareError('⚠️ Permiso denegado — intenta de nuevo')
-      } else if (name === 'TypeError') {
-        showShareError('⚠️ Archivo no aceptado por el navegador — usa "Guardar"')
-      } else {
-        showShareError(`⚠️ Error al compartir (${name}) — usa "Guardar"`)
-      }
+      console.error('[TelecomCatalog] buildZip error:', err)
+      showShareError('⚠️ Error al preparar el ZIP — intenta de nuevo')
     }
   }
 
@@ -131,20 +168,28 @@ export function ExportZipButton({ preventivo }: Props) {
     }
   }
 
+  // ── Estilos y etiquetas del botón según estado ────────────────────────────
+  const shareLabel =
+    shareState === 'preparing' ? '⏳ Preparando…'      :
+    shareState === 'ready'     ? '📲 Toca para enviar' :
+    shareState === 'sharing'   ? '📤 Enviando…'        :
+    shareState === 'done'      ? '✅ Compartido'        :
+    shareState === 'error'     ? shareMsg               :
+    '📤 Compartir ZIP'
+
+  const shareClass =
+    shareState === 'done'  ? 'bg-green-700 text-white'          :
+    shareState === 'ready' ? 'bg-emerald-400 text-slate-900 animate-pulse' :
+    shareState === 'error' ? 'bg-amber-700/80 text-amber-100'   :
+    'bg-emerald-700 hover:bg-emerald-600 text-white'
+
   return (
     <div className="flex flex-col items-end gap-1.5 shrink-0">
 
-      {/* Botón principal — Compartir (siempre visible; el handler gestiona cada caso) */}
+      {/* Botón principal — Compartir */}
       <button type="button" onClick={handleShare} disabled={busy}
-        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60 ${
-          shareState === 'done'  ? 'bg-green-700 text-white' :
-          shareState === 'error' ? 'bg-amber-700/80 text-amber-100' :
-          'bg-emerald-700 hover:bg-emerald-600 text-white'
-        }`}>
-        {shareState === 'loading' ? '⏳ Preparando…'
-          : shareState === 'done'  ? '✅ Compartido'
-          : shareState === 'error' ? shareMsg
-          : '📤 Compartir ZIP'}
+        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-60 ${shareClass}`}>
+        {shareLabel}
       </button>
 
       {/* Botón secundario — Guardar archivo */}
