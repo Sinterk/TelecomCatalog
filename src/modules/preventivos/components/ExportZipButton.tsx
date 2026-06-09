@@ -69,26 +69,30 @@ export function ExportZipButton({ preventivo }: Props) {
 
   // ── Botón "Compartir" (Web Share API — móvil) ─────────────────────────────
   async function handleShare() {
-    // 1. ¿Contexto seguro? (HTTPS o localhost)
+    // 1. HTTPS requerido (Share API no funciona en HTTP)
     if (!window.isSecureContext) {
-      showShareError('⚠️ Necesita HTTPS — usa GitHub Pages')
+      showShareError('⚠️ Necesita HTTPS — abre desde GitHub Pages')
       return
     }
-    // 2. ¿El navegador tiene Share API?
+    // 2. Navegador debe tener Share API (Chrome/Safari sí; Firefox desktop no)
     if (!('share' in navigator)) {
-      showShareError('⚠️ Navegador no compatible — usa Chrome')
+      showShareError('⚠️ Abre en Chrome o Safari para compartir')
       return
     }
-    // 3. ¿El navegador soporta compartir archivos? (Firefox Android no lo soporta)
-    const probe = new File([''], 'test.zip', { type: 'application/zip' })
-    if (navigator.canShare && !navigator.canShare({ files: [probe] })) {
-      showShareError('⚠️ Firefox no soporta archivos — usa Chrome')
-      return
-    }
+
+    // Construimos el ZIP primero y luego validamos con el archivo real
+    // (no con un probe vacío que puede dar falsos negativos)
     setShareState('loading')
     try {
       const { blob, fileName } = await buildZip(preventivo)
       const file = new File([blob], fileName, { type: 'application/zip' })
+
+      // 3. Verificar soporte de archivos con el archivo real
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+        showShareError('⚠️ Este navegador no comparte archivos — usa "Guardar"')
+        return
+      }
+
       await navigator.share({
         files: [file],
         title: `TelecomCatalog — ${preventivo.cuadrante.cuadrante || 'Levantamiento'}`,
@@ -98,9 +102,15 @@ export function ExportZipButton({ preventivo }: Props) {
       setTimeout(() => setShareState('idle'), 2500)
     } catch (err) {
       const name = (err as Error).name
-      console.warn('Share error:', name, err)
+      console.warn('[TelecomCatalog] Share error:', name, err)
       if (name === 'AbortError') { setShareState('idle'); return }
-      showShareError(`⚠️ Error: ${name} — usa Guardar`)
+      if (name === 'NotAllowedError') {
+        showShareError('⚠️ Permiso denegado — intenta de nuevo')
+      } else if (name === 'TypeError') {
+        showShareError('⚠️ Archivo no aceptado por el navegador — usa "Guardar"')
+      } else {
+        showShareError(`⚠️ Error al compartir (${name}) — usa "Guardar"`)
+      }
     }
   }
 

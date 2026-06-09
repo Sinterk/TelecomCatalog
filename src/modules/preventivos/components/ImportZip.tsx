@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import JSZip from 'jszip'
 import { usePreventivoStore } from '../store'
 import { savePhotoBlob } from '@/core/offline/photoStore'
@@ -13,8 +13,8 @@ export function ImportZip({ onImported }: Props) {
   const [msg, setMsg] = useState('')
   const { upsert } = usePreventivoStore()
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return
+  // ── Procesar el archivo ZIP (lógica compartida) ───────────────────────────
+  async function processFile(file: File) {
     setState('loading'); setMsg('')
     try {
       const zip = await JSZip.loadAsync(file)
@@ -36,17 +36,47 @@ export function ImportZip({ onImported }: Props) {
         puntos: await Promise.all((lev.puntos||[]).map(async (pt: any) => ({ id:pt.id||nanoid(), nombre:pt.nombre||'', descripcion:pt.descripcion||'', direccion:pt.direccion||'', correccion:pt.correccion||'', fotoLevantamiento:await loadFoto(pt.fotos?.levantamiento), fotoAntes:await loadFoto(pt.fotos?.antes), fotoDespues:await loadFoto(pt.fotos?.despues) })))
       }
       upsert(p); onImported(p.id)
-    } catch(err) { setMsg(err instanceof Error?err.message:'Error al importar'); setState('error') }
+    } catch(err) {
+      setMsg(err instanceof Error ? err.message : 'Error al importar')
+      setState('error')
+    }
+  }
+
+  // ── Input fallback (Android / Safari / Firefox) ───────────────────────────
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    await processFile(file)
     if (e.target) e.target.value = ''
+  }
+
+  // ── Click principal: intenta File System Access API → fallback a input ────
+  async function handleClick() {
+    // showOpenFilePicker (Chrome/Edge 86+) permite abrir directamente en Descargas
+    if ('showOpenFilePicker' in window) {
+      try {
+        const [handle] = await (window as any).showOpenFilePicker({
+          types: [{ description: 'ZIP de TelecomCatalog', accept: { 'application/zip': ['.zip'] } }],
+          startIn: 'downloads',
+          multiple: false,
+        })
+        const file: File = await handle.getFile()
+        await processFile(file)
+        return
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return // usuario canceló
+        // Otro error → caer al input normal
+      }
+    }
+    fileRef.current?.click()
   }
 
   return (
     <div>
-      <button type="button" onClick={()=>fileRef.current?.click()} disabled={state==='loading'}
+      <button type="button" onClick={handleClick} disabled={state==='loading'}
         className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
-        {state==='loading'?'⏳ Importando…':'📥 Importar ZIP'}
+        {state==='loading' ? '⏳ Importando…' : '📥 Importar ZIP'}
       </button>
-      {state==='error'&&<p className="text-red-400 text-xs mt-1.5">❌ {msg}</p>}
+      {state==='error' && <p className="text-red-400 text-xs mt-1.5">❌ {msg}</p>}
       <input ref={fileRef} type="file" accept=".zip" className="hidden" onChange={handleFile} />
     </div>
   )
