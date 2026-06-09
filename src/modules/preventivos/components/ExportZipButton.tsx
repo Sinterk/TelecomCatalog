@@ -139,17 +139,10 @@ export function ExportZipButton({ preventivo }: Props) {
       return
     }
 
-    const shareData: ShareData = {
-      files: [file],
-      title: `TelecomCatalog — ${preventivo.cuadrante.cuadrante || 'Levantamiento'}`,
-      text: [preventivo.cuadrante.cuadrante, preventivo.cuadrante.comuna]
-        .filter(Boolean).join(' — '),
-    }
-
-    if (navigator.canShare && !navigator.canShare(shareData)) {
-      showError('⚠️ canShare(full)=false — el payload (title/text/files) no es compartible')
-      return
-    }
+    // SOLO archivos — sin title/text. Chrome Android lanza NotAllowedError al
+    // combinar files + title/text aunque canShare() lo apruebe. El nombre del
+    // ZIP ya codifica cuadrante/comuna/fecha, así que no perdemos contexto.
+    const shareData: ShareData = { files: [file] }
 
     navigator.share(shareData).then(() => {
       setShareDone(true)
