@@ -114,7 +114,7 @@ export function Editor() {
           }
         </div>
 
-        <ExportZipButton preventivo={record} label="📦 Exportar ZIP" />
+        <ExportZipButton preventivo={record} />
       </div>
     </div>
   )
