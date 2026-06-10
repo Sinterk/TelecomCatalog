@@ -110,19 +110,24 @@ export function ExportZipButton({ preventivo }: Props) {
   function handleShare() {
     if (isBuilding || shareDone || saveState === 'loading') return
 
-    // ── Diagnóstico (v0.11): capturar estado en el instante del tap ──────────
-    const ua = (navigator as any).userActivation
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as any).standalone === true
+    // ── Sonda de tipos (v0.13): ¿qué MIME acepta canShare en este device? ────
+    const probe = (type: string, name: string) => {
+      try {
+        return navigator.canShare?.({ files: [new File([new Blob(['x'])], name, { type })] })
+      } catch { return 'err' }
+    }
+    const probes =
+      `zip=${probe('application/zip', 't.zip')} ` +
+      `oct=${probe('application/octet-stream', 't.bin')} ` +
+      `txt=${probe('text/plain', 't.txt')} ` +
+      `pdf=${probe('application/pdf', 't.pdf')} ` +
+      `png=${probe('image/png', 't.png')}`
+
     const file = prebuildFileRef.current
     const canShareFiles = file && navigator.canShare
       ? navigator.canShare({ files: [file] })
       : 'n/a'
-    const diag =
-      `act=${ua?.isActive} been=${ua?.hasBeenActive} ` +
-      `standalone=${standalone} canShareFiles=${canShareFiles} ` +
-      `secure=${window.isSecureContext}`
+    const diag = `canShareFiles=${canShareFiles} | ${probes}`
     setDebugMsg(diag)
     console.log('[TelecomCatalog] share diag:', diag)
 
@@ -139,10 +144,13 @@ export function ExportZipButton({ preventivo }: Props) {
       return
     }
 
-    // SOLO archivos — sin title/text. Chrome Android lanza NotAllowedError al
-    // combinar files + title/text aunque canShare() lo apruebe. El nombre del
-    // ZIP ya codifica cuadrante/comuna/fecha, así que no perdemos contexto.
     const shareData: ShareData = { files: [file] }
+
+    // Guard: no lanzar TypeError crudo si el device no comparte este archivo
+    if (navigator.canShare && !navigator.canShare(shareData)) {
+      showError('⚠️ Este Chrome no comparte este archivo (ver sonda) — usa "Guardar archivo"')
+      return
+    }
 
     navigator.share(shareData).then(() => {
       setShareDone(true)
