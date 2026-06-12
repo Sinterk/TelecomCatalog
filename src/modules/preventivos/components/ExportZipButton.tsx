@@ -64,6 +64,8 @@ export function ExportZipButton({ preventivo }: Props) {
   // Refs para evitar closures obsoletos y await antes de share()
   const prebuildFileRef = useRef<File | null>(null)
   const errorTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Chrome rechaza share() si hay otro share() cuya promesa aún no se resolvió
+  const sharePendingRef = useRef(false)
 
   // ── Pre-construir ZIP en segundo plano (1 s de debounce) ─────────────────
   // Objetivo: cuando el usuario toque "Compartir", el archivo ya está listo
@@ -127,7 +129,12 @@ export function ExportZipButton({ preventivo }: Props) {
     const canShareFiles = file && navigator.canShare
       ? navigator.canShare({ files: [file] })
       : 'n/a'
-    const diag = `canShareFiles=${canShareFiles} | ${probes}`
+    // v0.14: ¿la Permissions Policy permite web-share? ¿qué Chrome es? ¿pesa mucho el zip?
+    const fp = (document as any).featurePolicy ?? (document as any).permissionsPolicy
+    const pol = fp?.allowsFeature ? fp.allowsFeature('web-share') : 'n/a'
+    const chromeVer = /Chrome\/(\d+)/.exec(navigator.userAgent)?.[1] ?? '?'
+    const diag = `canShareFiles=${canShareFiles} pol=${pol} cr=${chromeVer} ` +
+      `pend=${sharePendingRef.current} sz=${file ? Math.round(file.size / 1024) : '?'}KB | ${probes}`
     setDebugMsg(diag)
     console.log('[TelecomCatalog] share diag:', diag)
 
@@ -151,18 +158,48 @@ export function ExportZipButton({ preventivo }: Props) {
       showError('⚠️ Este Chrome no comparte este archivo (ver sonda) — usa "Guardar archivo"')
       return
     }
+    // Guard v0.14: un share() anterior sin resolver hace fallar al siguiente
+    if (sharePendingRef.current) {
+      showError('⚠️ Hay un share anterior pendiente — cierra el panel de compartir y reintenta')
+      return
+    }
 
+    sharePendingRef.current = true
     navigator.share(shareData).then(() => {
       setShareDone(true)
       setTimeout(() => setShareDone(false), 3000)
     }).catch((err: Error) => {
-      const ua2 = (navigator as any).userActivation
       console.warn('[TelecomCatalog] share error:', err.name, err.message)
-      setDebugMsg(`${diag} → ERR ${err.name} act2=${ua2?.isActive}`)
+      // v0.14: mostrar el MENSAJE del error, que discrimina la causa
+      // (gesto consumido / permiso denegado / share pendiente / etc.)
+      setDebugMsg(`${diag} → ERR ${err.name}: ${(err.message || 's/d').slice(0, 140)}`)
       if (err.name !== 'AbortError') {
         showError(`⚠️ ${err.name}: ${err.message || 's/d'} — usa "Guardar archivo"`)
       }
+    }).finally(() => {
+      sharePendingRef.current = false
     })
+  }
+
+  // ── Pruebas mínimas de share (v0.14, temporal — quitar con el panel) ──────
+  // Dos casos extremos para aislar la causa del NotAllowedError:
+  //  · solo texto  → si falla, el Web Share entero está roto en este device
+  //  · archivo txt diminuto → si funciona pero el zip no, es tamaño/MIME real
+  function debugShare(label: string, data: ShareData) {
+    const report = (msg: string) => {
+      setDebugMsg(`🧪 ${label} → ${msg}`)
+      console.log('[TelecomCatalog] debugShare', label, msg)
+    }
+    if (sharePendingRef.current) { report('share anterior PENDIENTE'); return }
+    if (data.files && navigator.canShare && !navigator.canShare(data)) {
+      report('canShare=false')
+      return
+    }
+    sharePendingRef.current = true
+    navigator.share(data)
+      .then(() => report('OK ✅'))
+      .catch((e: Error) => report(`ERR ${e.name}: ${(e.message || 's/d').slice(0, 140)}`))
+      .finally(() => { sharePendingRef.current = false })
   }
 
   // ── Guardar (descarga directa — escritorio / fallback) ────────────────────
@@ -242,6 +279,22 @@ export function ExportZipButton({ preventivo }: Props) {
             className="ml-1 text-cyan-400 font-bold">×</button>
         </div>
       )}
+
+      {/* Pruebas mínimas de share (v0.14, temporal — quitar con el panel) */}
+      <div className="flex gap-1">
+        <button type="button"
+          onClick={() => debugShare('texto', { title: 'Prueba', text: 'Prueba TelecomCatalog' })}
+          className="text-[10px] font-mono px-2 py-1 rounded bg-slate-800 border border-cyan-800/50 text-cyan-300">
+          🧪 texto
+        </button>
+        <button type="button"
+          onClick={() => debugShare('txtFile', {
+            files: [new File([new Blob(['prueba TelecomCatalog'])], 'prueba.txt', { type: 'text/plain' })],
+          })}
+          className="text-[10px] font-mono px-2 py-1 rounded bg-slate-800 border border-cyan-800/50 text-cyan-300">
+          🧪 archivo txt
+        </button>
+      </div>
     </div>
   )
 }
