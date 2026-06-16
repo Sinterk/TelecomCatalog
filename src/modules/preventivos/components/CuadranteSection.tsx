@@ -13,10 +13,10 @@ interface Props {
 
 const inputCls = 'w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:border-brand-500 focus:outline-none placeholder-slate-500'
 
-const RESPONSABLES_POR_ZONA: Record<string, string[]> = {
-  '1': ['Luis Poggi', 'Gerardo Vargas'],
-  '2': ['Efraín Salazar', 'Alfredo Arriagada', 'Manuel Brito'],
-  '3': ['Juan Peranchiguay', 'Fernando Monroy', 'Cesar Valenzuela'],
+const RESPONSABLES_POR_ZONA: Record<string, string> = {
+  '1': 'Luis Poggi - Gerardo Vargas',
+  '2': 'Efraín Salazar - Alfredo Arriagada - Manuel Brito',
+  '3': 'Juan Peranchiguay - Fernando Monroy - Cesar Valenzuela',
 }
 
 export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
@@ -39,8 +39,7 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
   }
 
   function handleZonaChange(zona: string) {
-    const opciones = RESPONSABLES_POR_ZONA[zona] ?? []
-    updateCuadrante(preventivoId, { zona, responsable: opciones[0] ?? '' })
+    updateCuadrante(preventivoId, { zona, responsable: RESPONSABLES_POR_ZONA[zona] ?? '' })
     onSave?.()
   }
 
@@ -196,14 +195,9 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Responsable</label>
-            <select value={cuadrante.responsable}
+            <input type="text" value={cuadrante.responsable}
               onChange={(e) => set('responsable', e.target.value)}
-              disabled={!cuadrante.zona} className={`${inputCls} disabled:opacity-50`}>
-              <option value="">Seleccionar…</option>
-              {(RESPONSABLES_POR_ZONA[cuadrante.zona] ?? []).map((nombre) => (
-                <option key={nombre} value={nombre}>{nombre}</option>
-              ))}
-            </select>
+              placeholder="Ej. Luis Poggi - Gerardo Vargas" className={inputCls} />
           </div>
         </div>
       </div>
