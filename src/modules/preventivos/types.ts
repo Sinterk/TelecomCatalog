@@ -32,6 +32,8 @@ export interface Punto {
   descripcion: string
   direccion: string
   correccion: string
+  hallazgo: string
+  resuelto: boolean
   fotoLevantamiento?: FotoEntry
   fotoAntes?: FotoEntry
   fotoDespues?: FotoEntry

@@ -68,7 +68,7 @@ export const usePreventivoStore = create<PreventivoState>()(
               ...s.records,
               [id]: {
                 ...rec,
-                puntos: [...rec.puntos, { id: puntoId, nombre: '', descripcion: '', direccion: '', correccion: '' }],
+                puntos: [...rec.puntos, { id: puntoId, nombre: '', descripcion: '', direccion: '', correccion: '', hallazgo: '', resuelto: false }],
                 updatedAt: Date.now(),
               },
             },
