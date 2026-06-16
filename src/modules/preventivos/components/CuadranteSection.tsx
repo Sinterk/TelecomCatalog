@@ -141,7 +141,7 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
             }
           </button>
         )}
-        <input ref={planoInputRef} type="file" accept="image/*" capture="environment"
+        <input ref={planoInputRef} type="file" accept="image/*"
           className="hidden" onChange={handlePlanoCapture} />
       </div>
 

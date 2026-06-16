@@ -112,7 +112,7 @@ export function PhotoCapture({ label, fotoKey, entry, editable = true, onCapture
             <span className="text-[10px] text-slate-500">Toca para capturar</span>
           </>
       }
-      <input ref={inputRef} type="file" accept="image/*" capture="environment"
+      <input ref={inputRef} type="file" accept="image/*"
         className="hidden" onChange={handleChange} />
     </button>
   )

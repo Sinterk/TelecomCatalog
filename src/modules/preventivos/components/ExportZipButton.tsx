@@ -241,28 +241,30 @@ export function ExportZipButton({ preventivo }: Props) {
         </div>
       )}
 
+      {/* Guardar — botón principal (compartir no está operacional) */}
+      <button type="button" onClick={handleSave} disabled={saveState === 'loading'}
+        className={`flex items-center gap-2 text-base font-semibold px-5 py-3 rounded-xl transition-colors disabled:opacity-60 ${
+          saveState === 'done' ? 'bg-slate-600 text-green-300' :
+          'bg-brand-600 hover:bg-brand-500 text-white'
+        }`}>
+        {saveState === 'loading' ? '⏳ Guardando…'
+          : saveState === 'done'  ? '✅ Guardado'
+          : '📥 Guardar archivo'}
+      </button>
+
       {/*
         onClick directo: `click` es un gesto que concede transient activation,
         así que navigator.share() funciona. El archivo ya viene pre-construido,
-        por lo que no hay await entre el gesto y share().
+        por lo que no hay await entre el gesto y share(). Secundario: compartir
+        no está operacional (Chrome veta .zip en Web Share), se deja chico.
       */}
       <button
         type="button"
         onClick={handleShare}
         aria-disabled={isBuilding || shareDone || saveState === 'loading'}
-        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${shareClass}`}
+        className={`flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors opacity-80 ${shareClass}`}
       >
         {shareLabel}
-      </button>
-
-      <button type="button" onClick={handleSave} disabled={saveState === 'loading'}
-        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 ${
-          saveState === 'done' ? 'bg-slate-600 text-green-300' :
-          'bg-slate-700 hover:bg-slate-600 text-slate-300'
-        }`}>
-        {saveState === 'loading' ? '⏳ Guardando…'
-          : saveState === 'done'  ? '✅ Guardado'
-          : '📥 Guardar archivo'}
       </button>
 
       {saveState === 'done' && (
