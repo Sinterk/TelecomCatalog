@@ -32,7 +32,7 @@ const HALLAZGOS: string[] = [
   'Rotulado de Mufas, cables, gabinetes, DC',
   'Rotulado de CTO',
   'Entrada sin sello cable / Mufa',
-  'Cruceta Dañada',
+  'Falta cruceta o Cruceta Dañada',
   'Falta Planimetria',
   'CTO en condición insegura o no autorizada',
 ]
