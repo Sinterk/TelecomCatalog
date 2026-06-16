@@ -168,7 +168,7 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onPhoto
               onChange={(e) => editable && updatePunto(preventivoId, punto.id, { resuelto: e.target.checked })}
               className="w-4 h-4 accent-brand-500 disabled:opacity-50"
             />
-            ✅ Resuelto
+            Resuelto
           </label>
 
           <div>
