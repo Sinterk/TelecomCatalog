@@ -23,6 +23,7 @@ export interface CuadranteInfo {
   nombreCuadrante: string
   direccion: string
   zona: string
+  responsable: string
 }
 
 export interface Punto {

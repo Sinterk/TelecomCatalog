@@ -13,6 +13,12 @@ interface Props {
 
 const inputCls = 'w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:border-brand-500 focus:outline-none placeholder-slate-500'
 
+const RESPONSABLES_POR_ZONA: Record<string, string[]> = {
+  '1': ['Luis Poggi', 'Gerardo Vargas'],
+  '2': ['Efraín Salazar', 'Alfredo Arriagada', 'Manuel Brito'],
+  '3': ['Juan Peranchiguay', 'Fernando Monroy', 'Cesar Valenzuela'],
+}
+
 export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
   const { updateCuadrante } = usePreventivoStore()
   const planoInputRef = useRef<HTMLInputElement>(null)
@@ -29,6 +35,12 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
 
   function set<K extends keyof CuadranteInfo>(key: K, value: CuadranteInfo[K]) {
     updateCuadrante(preventivoId, { [key]: value })
+    onSave?.()
+  }
+
+  function handleZonaChange(zona: string) {
+    const opciones = RESPONSABLES_POR_ZONA[zona] ?? []
+    updateCuadrante(preventivoId, { zona, responsable: opciones[0] ?? '' })
     onSave?.()
   }
 
@@ -171,11 +183,28 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
             onChange={(e) => set('direccion', e.target.value)}
             placeholder="Ej. 6a Av. 0-60, zona 1" className={inputCls} />
         </div>
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Zona</label>
-          <input type="text" value={cuadrante.zona}
-            onChange={(e) => set('zona', e.target.value)}
-            placeholder="Ej. Zona 1" className={inputCls} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Zona</label>
+            <select value={cuadrante.zona}
+              onChange={(e) => handleZonaChange(e.target.value)} className={inputCls}>
+              <option value="">Seleccionar…</option>
+              <option value="1">Zona 1</option>
+              <option value="2">Zona 2</option>
+              <option value="3">Zona 3</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Responsable</label>
+            <select value={cuadrante.responsable}
+              onChange={(e) => set('responsable', e.target.value)}
+              disabled={!cuadrante.zona} className={`${inputCls} disabled:opacity-50`}>
+              <option value="">Seleccionar…</option>
+              {(RESPONSABLES_POR_ZONA[cuadrante.zona] ?? []).map((nombre) => (
+                <option key={nombre} value={nombre}>{nombre}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>

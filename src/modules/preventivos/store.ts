@@ -19,7 +19,7 @@ interface PreventivoState {
 
 const emptyC = (): CuadranteInfo => ({
   cuadrante: '', comuna: '', fecha: '', semana: '',
-  nombreCuadrante: '', direccion: '', zona: '',
+  nombreCuadrante: '', direccion: '', zona: '', responsable: '',
 })
 
 export const usePreventivoStore = create<PreventivoState>()(
