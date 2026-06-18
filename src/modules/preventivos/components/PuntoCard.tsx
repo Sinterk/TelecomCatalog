@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { PhotoCapture } from './PhotoCapture'
 import { usePreventivoStore } from '../store'
 import type { Punto, FotoKey } from '../types'
@@ -7,8 +9,10 @@ interface Props {
   preventivoId: string
   punto: Punto
   index: number
+  total: number
   editable?: boolean
   onSave: () => Promise<void>
+  onMove: (from: number, to: number) => void
   onPhotoCapture: (file: File, key: FotoKey) => Promise<void>
 }
 
@@ -37,9 +41,11 @@ const HALLAZGOS: string[] = [
   'CTO en condición insegura o no autorizada',
 ]
 
-export function PuntoCard({ preventivoId, punto, index, editable = true, onPhotoCapture }: Props) {
+export function PuntoCard({ preventivoId, punto, index, total, editable = true, onMove, onPhotoCapture }: Props) {
   const { updatePunto, removePunto, removeFoto } = usePreventivoStore()
   const [expanded, setExpanded] = useState(true)
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: punto.id })
 
   function handleHallazgoChange(hallazgo: string) {
     updatePunto(preventivoId, punto.id, { hallazgo, resuelto: hallazgo !== '' })
@@ -55,9 +61,31 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onPhoto
     .filter(Boolean).length
 
   return (
-    <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden ${isDragging ? 'opacity-50 shadow-xl z-50' : ''}`}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5">
+        {/* Drag handle */}
+        {editable && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 shrink-0 p-1 touch-none"
+            title="Arrastrar para reordenar"
+            tabIndex={-1}
+          >
+            <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden>
+              <circle cx="3" cy="3"  r="1.5"/><circle cx="9" cy="3"  r="1.5"/>
+              <circle cx="3" cy="8"  r="1.5"/><circle cx="9" cy="8"  r="1.5"/>
+              <circle cx="3" cy="13" r="1.5"/><circle cx="9" cy="13" r="1.5"/>
+            </svg>
+          </button>
+        )}
+
         <span className="bg-brand-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0">
           {index + 1}
         </span>
@@ -82,6 +110,29 @@ export function PuntoCard({ preventivoId, punto, index, editable = true, onPhoto
         )}
 
         <div className="flex items-center gap-1 shrink-0">
+          {/* Mover al inicio / al final — solo visible con 3+ puntos */}
+          {editable && total >= 3 && (
+            <>
+              <button
+                type="button"
+                onClick={() => onMove(index, 0)}
+                disabled={index === 0}
+                className="text-slate-600 hover:text-brand-400 disabled:opacity-20 text-sm p-1 leading-none"
+                title="Mover al inicio"
+              >
+                ⤒
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(index, total - 1)}
+                disabled={index === total - 1}
+                className="text-slate-600 hover:text-brand-400 disabled:opacity-20 text-sm p-1 leading-none"
+                title="Mover al final"
+              >
+                ⤓
+              </button>
+            </>
+          )}
           {editable && (
             <button
               type="button"

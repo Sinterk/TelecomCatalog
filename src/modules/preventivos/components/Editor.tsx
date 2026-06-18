@@ -1,5 +1,10 @@
 import { useRef, useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { usePreventivoStore } from '../store'
 import { usePreventivo } from '../hooks/usePreventivo'
 import { useRestorePhotoPreviews } from '../hooks/useRestorePhotoPreviews'
@@ -14,8 +19,21 @@ export function Editor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { record, processPhoto } = usePreventivo(id ?? '')
-  const { addPunto } = usePreventivoStore()
+  const { addPunto, movePunto } = usePreventivoStore()
   useRestorePhotoPreviews()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id || !record) return
+    const from = record.puntos.findIndex((p) => p.id === active.id)
+    const to   = record.puntos.findIndex((p) => p.id === over.id)
+    if (from !== -1 && to !== -1) movePunto(record.id, from, to)
+  }
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const prevUpdatedAt = useRef<number | null>(null)
@@ -86,12 +104,17 @@ export function Editor() {
           <div className="text-center py-8 text-slate-500 text-sm">Agrega puntos con el botón de abajo.</div>
         )}
 
-        {puntos.map((punto, i) => (
-          <PuntoCard key={punto.id} preventivoId={record.id} punto={punto} index={i}
-            editable={true}
-            onSave={async () => {}}
-            onPhotoCapture={(file: File, key: FotoKey) => processPhoto(file, punto.id, key)} />
-        ))}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={puntos.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            {puntos.map((punto, i) => (
+              <PuntoCard key={punto.id} preventivoId={record.id} punto={punto} index={i} total={puntos.length}
+                editable={true}
+                onSave={async () => {}}
+                onMove={(from, to) => movePunto(record.id, from, to)}
+                onPhotoCapture={(file: File, key: FotoKey) => processPhoto(file, punto.id, key)} />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         <button type="button" onClick={() => addPunto(record.id)}
           className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-600 text-slate-400 text-sm hover:border-brand-500 hover:text-brand-400 transition-colors flex items-center justify-center gap-2">

@@ -13,6 +13,7 @@ interface PreventivoState {
   addPunto: (id: string) => string
   removePunto: (id: string, puntoId: string) => void
   updatePunto: (id: string, puntoId: string, data: Partial<Omit<Punto, 'id'>>) => void
+  movePunto: (id: string, from: number, to: number) => void
   setFoto: (id: string, puntoId: string, key: FotoKey, entry: FotoEntry) => void
   removeFoto: (id: string, puntoId: string, key: FotoKey) => void
 }
@@ -86,6 +87,15 @@ export const usePreventivoStore = create<PreventivoState>()(
             [id]: { ...rec, puntos: rec.puntos.filter((p) => p.id !== puntoId), updatedAt: Date.now() },
           },
         }
+      }),
+
+      movePunto: (id, from, to) => set((s) => {
+        const rec = s.records[id]
+        if (!rec) return s
+        const puntos = [...rec.puntos]
+        const [removed] = puntos.splice(from, 1)
+        puntos.splice(to, 0, removed)
+        return { records: { ...s.records, [id]: { ...rec, puntos, updatedAt: Date.now() } } }
       }),
 
       updatePunto: (id, puntoId, data) => set((s) => {
