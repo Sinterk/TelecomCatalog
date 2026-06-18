@@ -20,6 +20,7 @@ export interface CuadranteInfo {
   /** Llena el JP al revisar */
   fecha: string
   semana: string
+  semestre: string
   nombreCuadrante: string
   direccion: string
   zona: string

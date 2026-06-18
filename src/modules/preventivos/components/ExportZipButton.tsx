@@ -32,6 +32,7 @@ async function buildZip(preventivo: Preventivo): Promise<{ blob: Blob; fileName:
       id: preventivo.id, createdAt: preventivo.createdAt, updatedAt: preventivo.updatedAt,
       cuadrante: {
         ...preventivo.cuadrante,
+        semestre: preventivo.cuadrante.semestre,
         fotoPlano: plano ? { fileName: plano.fileName, capturedAt: plano.capturedAt } : null,
       },
       puntos: preventivo.puntos.map((p) => ({

@@ -171,6 +171,15 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
           </div>
         </div>
         <div>
+          <label className="block text-xs text-slate-400 mb-1">Semestre</label>
+          <select value={cuadrante.semestre ?? ''}
+            onChange={(e) => set('semestre', e.target.value)} className={inputCls}>
+            <option value="">Seleccionar…</option>
+            <option value="1">1er Semestre</option>
+            <option value="2">2do Semestre</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-xs text-slate-400 mb-1">Nombre del cuadrante</label>
           <input type="text" value={cuadrante.nombreCuadrante}
             onChange={(e) => set('nombreCuadrante', e.target.value)}
