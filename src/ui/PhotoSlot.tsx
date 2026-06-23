@@ -1,0 +1,92 @@
+import { useRef, useState, useEffect } from 'react'
+
+interface Props {
+  label: string
+  emoji: string
+  borderColor: string
+  previewUrl?: string
+  editable?: boolean
+  onCapture: (file: File) => Promise<void>
+  onRemove: () => void
+}
+
+export function PhotoSlot({ label, emoji, borderColor, previewUrl, editable = true, onCapture, onRemove }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
+
+  useEffect(() => {
+    if (!lightbox) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setLightbox(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox])
+
+  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLoading(true)
+    try { await onCapture(file) } finally {
+      setLoading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  if (previewUrl) {
+    return (
+      <>
+        <div className={`relative rounded-xl overflow-hidden border-2 ${borderColor} bg-slate-800`}>
+          <img src={previewUrl} alt={label}
+            className="w-full h-36 object-cover cursor-zoom-in"
+            onClick={() => setLightbox(true)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 flex items-center justify-between">
+            <span className="text-xs text-white truncate">{emoji} {label}</span>
+            {editable && (
+              <button type="button" onClick={onRemove}
+                className="text-red-400 text-xs font-bold ml-2 hover:text-red-300">✕</button>
+            )}
+          </div>
+        </div>
+        {lightbox && (
+          <div className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center p-4"
+            onClick={() => setLightbox(false)}>
+            <button type="button" onClick={() => setLightbox(false)}
+              className="absolute top-4 right-4 text-white/60 hover:text-white text-4xl font-light leading-none">×</button>
+            <div className="flex flex-col items-center gap-3 max-w-full max-h-full"
+              onClick={(e) => e.stopPropagation()}>
+              <img src={previewUrl} alt={label}
+                className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+              <span className="text-slate-400 text-sm">{emoji} {label}</span>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  if (!editable) {
+    return (
+      <div className={`w-full h-36 rounded-xl border-2 border-dashed ${borderColor} bg-slate-800/50 flex flex-col items-center justify-center gap-1`}>
+        <span className="text-3xl opacity-30">{emoji}</span>
+        <span className="text-xs text-slate-500">{label}</span>
+        <span className="text-[10px] text-slate-600">Sin foto</span>
+      </div>
+    )
+  }
+
+  return (
+    <button type="button" onClick={() => inputRef.current?.click()} disabled={loading}
+      className={`w-full h-36 rounded-xl border-2 border-dashed ${borderColor} bg-slate-800/50 flex flex-col items-center justify-center gap-1 hover:bg-slate-700/50 transition-colors disabled:opacity-50`}>
+      {loading
+        ? <span className="text-2xl animate-spin">⏳</span>
+        : <>
+            <span className="text-3xl">{emoji}</span>
+            <span className="text-xs text-slate-300">{label}</span>
+            <span className="text-[10px] text-slate-500">Toca para capturar</span>
+          </>
+      }
+      <input ref={inputRef} type="file" accept="image/*" capture="environment"
+        className="hidden" onChange={handleChange} />
+    </button>
+  )
+}
