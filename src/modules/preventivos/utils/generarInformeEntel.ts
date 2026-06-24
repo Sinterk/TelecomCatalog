@@ -336,30 +336,32 @@ async function writeBlock(
   const rowPx    = ROW_H * (96 / 72) // pt → px
   const blockPx  = N_IMG_ROWS * rowPx
 
-  // Place each image centered within its merged area.
-  // Use nativeCol/nativeColOff (EMU) directly — the fractional `col` setter
-  // internally multiplies by colWidth (character units × 10000), not EMU, so
-  // it produces wrong offsets. Passing nativeCol triggers the identity branch in
-  // anchor.js (line 20: `address.nativeCol !== undefined`) which writes values
-  // straight to xdr:colOff/xdr:rowOff as required by OOXML (1px = 9525 EMU).
+  // twoCellAnchor: image is tied to row/column cell positions (points, absolute
+  // physical units) rather than to a fixed EMU extent. This makes rendering
+  // consistent across Excel versions and Windows DPI scaling settings.
+  // drawing-xform.js picks twoCellAnchor automatically when `br` is present.
   const PX_TO_EMU = 9525
   for (const img of [imgAnt, imgDsp]) {
     if (!img) continue
     try {
       const colPx    = img.col0 === 0 ? COL_A_PX : COL_C_PX
-      const colOffPx = Math.max(colPx  - img.dw, 0) / 2
-      const rowOffPx = Math.max(blockPx - img.dh, 0) / 2
-      console.log(`[Entel IMG] col=${img.col0} dw=${img.dw} dh=${img.dh} blockPx=${blockPx.toFixed(1)} colPx=${colPx.toFixed(1)} colOffPx=${colOffPx.toFixed(1)} rowOffPx=${rowOffPx.toFixed(1)}`)
+      const colOffPx = Math.max(colPx - img.dw, 0) / 2
+      console.log(`[Entel IMG] col=${img.col0} dw=${img.dw} dh=${img.dh} blockPx=${blockPx.toFixed(1)} colOffPx=${colOffPx.toFixed(1)}`)
       const imgId = workbook.addImage({ buffer: img.buf, extension: 'jpeg' })
       ws.addImage(imgId, {
         tl: {
           nativeCol:    img.col0,
           nativeColOff: Math.round(colOffPx * PX_TO_EMU),
           nativeRow:    imgRow - 1,
-          nativeRowOff: Math.round(rowOffPx * PX_TO_EMU),
+          nativeRowOff: 0,
         },
-        ext: { width: img.dw, height: img.dh },
-        editAs: 'oneCell',
+        br: {
+          nativeCol:    img.col0,
+          nativeColOff: Math.round((colOffPx + img.dw) * PX_TO_EMU),
+          nativeRow:    imgRow - 1 + N_IMG_ROWS, // start of row after block = bottom edge
+          nativeRowOff: 0,
+        },
+        editAs: 'twoCell',
       })
     } catch { /* image unavailable — leave blank */ }
   }
