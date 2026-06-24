@@ -198,6 +198,7 @@ async function prepareImage(
       getImgSize(foto.previewUrl),
     ])
     const { dw, dh } = displaySize(size.w, size.h)
+    console.log(`[Entel IMG] col=${col0} natural=${size.w}×${size.h} display=${dw}×${dh}`)
     return { buf, dw, dh, col0 }
   } catch { return null }
 }
@@ -305,6 +306,7 @@ async function writeBlock(
   // Fixed row height — displaySize now caps dh ≤ PORTRAIT_H, so the block is always
   // the same height regardless of image content, making layout DPI-independent.
   const ROW_H = (PORTRAIT_H * 0.75) / N_IMG_ROWS  // 27.75 pt
+  console.log(`[Entel BLK] base=${base} ROW_H=${ROW_H.toFixed(2)}pt PORTRAIT_H=${PORTRAIT_H}px`)
   for (let r = imgRow; r < imgRow + N_IMG_ROWS; r++) ws.getRow(r).height = ROW_H
 
   ws.mergeCells(imgRow, 1, imgRow + N_IMG_ROWS - 1, 1)
@@ -334,6 +336,7 @@ async function writeBlock(
       const colPx    = img.col0 === 0 ? COL_A_PX : COL_C_PX
       const colOffPx = Math.max(colPx  - img.dw, 0) / 2
       const rowOffPx = Math.max(blockPx - img.dh, 0) / 2
+      console.log(`[Entel IMG] col=${img.col0} dw=${img.dw} dh=${img.dh} blockPx=${blockPx.toFixed(1)} colPx=${colPx.toFixed(1)} colOffPx=${colOffPx.toFixed(1)} rowOffPx=${rowOffPx.toFixed(1)}`)
       const imgId = workbook.addImage({ buffer: img.buf, extension: 'jpeg' })
       ws.addImage(imgId, {
         tl: {
