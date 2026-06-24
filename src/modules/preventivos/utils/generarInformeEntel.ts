@@ -316,16 +316,27 @@ async function writeBlock(
   const rowPx    = ROW_H * (96 / 72) // pt → px
   const blockPx  = N_IMG_ROWS * rowPx
 
-  // Place each image centered within its merged area
+  // Place each image centered within its merged area.
+  // Use nativeCol/nativeColOff (EMU) directly — the fractional `col` setter
+  // internally multiplies by colWidth (character units × 10000), not EMU, so
+  // it produces wrong offsets. Passing nativeCol triggers the identity branch in
+  // anchor.js (line 20: `address.nativeCol !== undefined`) which writes values
+  // straight to xdr:colOff/xdr:rowOff as required by OOXML (1px = 9525 EMU).
+  const PX_TO_EMU = 9525
   for (const img of [imgAnt, imgDsp]) {
     if (!img) continue
     try {
-      const colPx = img.col0 === 0 ? COL_A_PX : COL_C_PX
-      const hOff  = Math.max(colPx  - img.dw, 0) / 2 / colPx   // fraction of col width
-      const vOff  = Math.max(blockPx - img.dh, 0) / 2 / rowPx  // fraction of row height
+      const colPx    = img.col0 === 0 ? COL_A_PX : COL_C_PX
+      const colOffPx = Math.max(colPx  - img.dw, 0) / 2
+      const rowOffPx = Math.max(blockPx - img.dh, 0) / 2
       const imgId = workbook.addImage({ buffer: img.buf, extension: 'jpeg' })
       ws.addImage(imgId, {
-        tl: { col: img.col0 + hOff, row: (imgRow - 1) + vOff },
+        tl: {
+          nativeCol:    img.col0,
+          nativeColOff: Math.round(colOffPx * PX_TO_EMU),
+          nativeRow:    imgRow - 1,
+          nativeRowOff: Math.round(rowOffPx * PX_TO_EMU),
+        },
         ext: { width: img.dw, height: img.dh },
         editAs: 'oneCell',
       })
