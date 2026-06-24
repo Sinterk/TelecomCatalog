@@ -62,8 +62,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': '/src',
-      // ExcelJS uses Node.js built-ins; redirect to its self-contained browser build
-      'exceljs': path.resolve('./node_modules/exceljs/dist/es5/exceljs.browser.js'),
+      // ExcelJS browser UMD bundle — sin dependencias core-js externas
+      'exceljs': path.resolve('./node_modules/exceljs/dist/exceljs.bare.js'),
     },
   },
 })
