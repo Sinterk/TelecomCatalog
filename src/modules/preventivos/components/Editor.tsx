@@ -12,6 +12,7 @@ import { CuadranteSection } from './CuadranteSection'
 import { PuntoCard } from './PuntoCard'
 import { ExportZipButton } from './ExportZipButton'
 import { ExportLevButton } from './ExportLevButton'
+import { ExportInformeButton } from './ExportInformeButton'
 import type { FotoKey } from '../types'
 
 type SaveStatus = 'saved' | 'saving'
@@ -139,6 +140,7 @@ export function Editor() {
         </div>
 
         <ExportLevButton preventivo={record} />
+        <ExportInformeButton preventivo={record} />
         <ExportZipButton preventivo={record} />
       </div>
     </div>

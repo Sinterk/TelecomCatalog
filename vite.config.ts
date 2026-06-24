@@ -17,7 +17,7 @@ const https = loadCerts()
 
 // Versión visible en la UI. Súbela en cada deploy para verificar (junto al
 // timestamp de build) que el service worker realmente cargó el bundle nuevo.
-const APP_VERSION = 'v0.26'
+const APP_VERSION = 'v0.27'
 
 export default defineConfig({
   base: './',
@@ -59,5 +59,11 @@ export default defineConfig({
   ],
   server:  { host: true, https },
   preview: { host: true, https },
-  resolve: { alias: { '@': '/src' } },
+  resolve: {
+    alias: {
+      '@': '/src',
+      // ExcelJS uses Node.js built-ins; redirect to its self-contained browser build
+      'exceljs': path.resolve('./node_modules/exceljs/dist/es5/exceljs.browser.js'),
+    },
+  },
 })
