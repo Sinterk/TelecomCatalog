@@ -157,6 +157,42 @@ const GREY_ARGB  = 'FF808080'
 const MEDIUM_SIDE = { style: 'medium' as const, color: { argb: BLACK_ARGB } }
 const NO_SIDE     = { style: 'thin' as const,   color: { argb: 'FFFFFFFF' } }
 
+// ── Image sizing ──────────────────────────────────────────────────────────────
+
+const PORTRAIT_H  = 37 * 9   // 333 px — vertical images constrained to this height
+const LANDSCAPE_W = 457       // px    — horizontal images constrained to this width
+
+function getImgSize(url: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload  = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+    img.onerror = () => resolve({ w: 255, h: 333 }) // fallback: portrait
+    img.src = url
+  })
+}
+
+function displaySize(w: number, h: number): { dw: number; dh: number } {
+  if (h >= w) return { dw: Math.round(w * PORTRAIT_H / h),  dh: PORTRAIT_H  }
+  else        return { dw: LANDSCAPE_W, dh: Math.round(h * LANDSCAPE_W / w) }
+}
+
+type ImgData = { buf: ArrayBuffer; dw: number; dh: number; col0: 0 | 2 }
+
+async function prepareImage(
+  foto: Punto['fotoAntes'] | null,
+  col0: 0 | 2,
+): Promise<ImgData | null> {
+  if (!foto?.previewUrl) return null
+  try {
+    const [buf, size] = await Promise.all([
+      urlToBuffer(foto.previewUrl),
+      getImgSize(foto.previewUrl),
+    ])
+    const { dw, dh } = displaySize(size.w, size.h)
+    return { buf, dw, dh, col0 }
+  } catch { return null }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function llenarFotos(workbook: any, ws: any, preventivo: Preventivo) {
   // Clear existing images (internal field)
@@ -193,7 +229,7 @@ async function llenarFotos(workbook: any, ws: any, preventivo: Preventivo) {
     const fotoAnt = p.fotoAntes || p.fotoLevantamiento || null
     const fotoDsp = p.fotoDespues || null
 
-    const desc   = [p.descripcion, p.direccion].filter(Boolean).join(', ')
+    const desc   = p.descripcion || ''
     const dirSuf = p.direccion ? `, ${p.direccion}` : ''
     const obsAnt = `Observación: ${p.descripcion || p.nombre || ''}${dirSuf}`
     const obsDsp = p.correccion
@@ -266,22 +302,31 @@ async function writeBlock(
   ws.getRow(base + 1).height = 21.45
 
   // Rows base+2..base+10 (9 rows): image area
-  const imgRow = base + 2
+  const imgRow    = base + 2
   const N_IMG_ROWS = 9
-  const ROW_H = Math.max((340 * 0.75) / N_IMG_ROWS, 15)  // ~28.3 pt
+
+  // Prepare images: get buffers + natural dimensions in parallel
+  const [imgAnt, imgDsp] = await Promise.all([
+    prepareImage(fotoAnt, 0),
+    prepareImage(fotoDsp, 2),
+  ])
+
+  // Row height from the tallest image (px→pt, distributed over 9 rows)
+  const maxH  = Math.max(imgAnt?.dh ?? PORTRAIT_H, imgDsp?.dh ?? PORTRAIT_H)
+  const ROW_H = Math.max((maxH * 0.75) / N_IMG_ROWS, 15)
   for (let r = imgRow; r < imgRow + N_IMG_ROWS; r++) ws.getRow(r).height = ROW_H
+
   ws.mergeCells(imgRow, 1, imgRow + N_IMG_ROWS - 1, 1)
   ws.mergeCells(imgRow, 3, imgRow + N_IMG_ROWS - 1, 3)
 
-  // Images (col A = 0-indexed col 0, col C = 0-indexed col 2)
-  for (const [foto, col0] of [[fotoAnt, 0], [fotoDsp, 2]] as const) {
-    if (!foto?.previewUrl) continue
+  // Place each image at top-left of its merged cell, exact pixel size (no stretch)
+  for (const img of [imgAnt, imgDsp]) {
+    if (!img) continue
     try {
-      const buf = await urlToBuffer(foto.previewUrl)
-      const imgId = workbook.addImage({ buffer: buf, extension: 'jpeg' })
+      const imgId = workbook.addImage({ buffer: img.buf, extension: 'jpeg' })
       ws.addImage(imgId, {
-        tl: { col: col0,     row: imgRow - 1 }, // ExcelJS uses 0-indexed
-        br: { col: col0 + 1, row: imgRow + N_IMG_ROWS - 1 },
+        tl: { col: img.col0, row: imgRow - 1 }, // 0-indexed
+        ext: { width: img.dw, height: img.dh },
         editAs: 'oneCell',
       })
     } catch { /* image unavailable — leave blank */ }
