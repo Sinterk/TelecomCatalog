@@ -19,7 +19,7 @@ interface PreventivoState {
 }
 
 const emptyC = (): CuadranteInfo => ({
-  cuadrante: '', comuna: '', fecha: '', semana: '', semestre: '',
+  cuadrante: '', comuna: '', grupo: '', fecha: '', semana: '', semestre: '',
   nombreCuadrante: '', direccion: '', zona: '', responsable: '',
 })
 

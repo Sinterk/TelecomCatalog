@@ -88,7 +88,11 @@ export async function generarInformeEntel(preventivo: Preventivo): Promise<void>
   const fotosWs = workbook.getWorksheet('Fotos')
 
   if (actaWs) llenarActa(actaWs, preventivo)
-  if (fotosWs) await llenarFotos(workbook, fotosWs, preventivo)
+
+  // Remove template's Fotos sheet and create a clean one to avoid residue styling
+  if (fotosWs) workbook.removeWorksheet(fotosWs.id)
+  const newFotosWs = workbook.addWorksheet('Fotos')
+  await llenarFotos(workbook, newFotosWs, preventivo)
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], {
@@ -195,24 +199,6 @@ async function prepareImage(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function llenarFotos(workbook: any, ws: any, preventivo: Preventivo) {
-  // Clear existing images (internal field)
-  try { (ws as any)._images = [] } catch {}
-
-  // Unmerge all existing ranges
-  try {
-    const merges = Object.keys((ws as any)._merges ?? {})
-    for (const m of merges) {
-      try { ws.unMergeCells(m) } catch {}
-    }
-  } catch {}
-
-  // Clear all cell values
-  ws.eachRow({ includeEmpty: true }, (row: any) => {
-    row.eachCell({ includeEmpty: true }, (cell: any) => {
-      try { cell.value = null } catch {}
-    })
-  })
-
   // Column widths (match Python script)
   ws.getColumn('A').width = 64.9
   ws.getColumn('B').width = 4.7
@@ -319,13 +305,27 @@ async function writeBlock(
   ws.mergeCells(imgRow, 1, imgRow + N_IMG_ROWS - 1, 1)
   ws.mergeCells(imgRow, 3, imgRow + N_IMG_ROWS - 1, 3)
 
-  // Place each image at top-left of its merged cell, exact pixel size (no stretch)
+  // Explicit white fill on image anchor cells (prevents template residue colors)
+  const whiteFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: WHITE_ARGB } }
+  ws.getCell(imgRow, 1).fill = whiteFill
+  ws.getCell(imgRow, 3).fill = whiteFill
+
+  // Column pixel widths (chars × 7 + 5, matching Python EMU calc)
+  const COL_A_PX = 64.9 * 7 + 5   // ~459 px
+  const COL_C_PX = 65.3 * 7 + 5   // ~462 px
+  const rowPx    = ROW_H * (96 / 72) // pt → px
+  const blockPx  = N_IMG_ROWS * rowPx
+
+  // Place each image centered within its merged area
   for (const img of [imgAnt, imgDsp]) {
     if (!img) continue
     try {
+      const colPx = img.col0 === 0 ? COL_A_PX : COL_C_PX
+      const hOff  = Math.max(colPx  - img.dw, 0) / 2 / colPx   // fraction of col width
+      const vOff  = Math.max(blockPx - img.dh, 0) / 2 / rowPx  // fraction of row height
       const imgId = workbook.addImage({ buffer: img.buf, extension: 'jpeg' })
       ws.addImage(imgId, {
-        tl: { col: img.col0, row: imgRow - 1 }, // 0-indexed
+        tl: { col: img.col0 + hOff, row: (imgRow - 1) + vOff },
         ext: { width: img.dw, height: img.dh },
         editAs: 'oneCell',
       })

@@ -18,6 +18,7 @@ export interface CuadranteInfo {
   fotoPlano?: FotoEntry  // foto del plano/mapa de trabajo
 
   /** Llena el JP al revisar */
+  grupo: string         // 'Equifiber' | 'Onnet'
   fecha: string
   semana: string
   semestre: string

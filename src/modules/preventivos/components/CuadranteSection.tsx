@@ -96,6 +96,15 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
       </div>
 
       <div>
+        <label className="block text-xs text-slate-400 mb-1">Grupo</label>
+        <select value={cuadrante.grupo ?? ''} onChange={(e) => set('grupo', e.target.value)} className={inputCls}>
+          <option value="">Seleccionar…</option>
+          <option value="Equifiber">Equifiber</option>
+          <option value="Onnet">Onnet</option>
+        </select>
+      </div>
+
+      <div>
         <label className="block text-xs text-slate-400 mb-2">📐 Foto del plano de trabajo</label>
         {cuadrante.fotoPlano?.previewUrl ? (
           <>
