@@ -176,8 +176,13 @@ function getImgSize(url: string): Promise<{ w: number; h: number }> {
 }
 
 function displaySize(w: number, h: number): { dw: number; dh: number } {
-  if (h >= w) return { dw: Math.round(w * PORTRAIT_H / h),  dh: PORTRAIT_H  }
-  else        return { dw: LANDSCAPE_W, dh: Math.round(h * LANDSCAPE_W / w) }
+  if (h >= w) {
+    return { dw: Math.round(w * PORTRAIT_H / h), dh: PORTRAIT_H }
+  }
+  // landscape: constrain by width first; if that exceeds PORTRAIT_H, constrain by height instead
+  const dh = Math.round(h * LANDSCAPE_W / w)
+  if (dh <= PORTRAIT_H) return { dw: LANDSCAPE_W, dh }
+  return { dw: Math.round(w * PORTRAIT_H / h), dh: PORTRAIT_H }
 }
 
 type ImgData = { buf: ArrayBuffer; dw: number; dh: number; col0: 0 | 2 }
@@ -297,9 +302,9 @@ async function writeBlock(
     prepareImage(fotoDsp, 2),
   ])
 
-  // Row height from the tallest image (px→pt, distributed over 9 rows)
-  const maxH  = Math.max(imgAnt?.dh ?? PORTRAIT_H, imgDsp?.dh ?? PORTRAIT_H)
-  const ROW_H = Math.max((maxH * 0.75) / N_IMG_ROWS, 15)
+  // Fixed row height — displaySize now caps dh ≤ PORTRAIT_H, so the block is always
+  // the same height regardless of image content, making layout DPI-independent.
+  const ROW_H = (PORTRAIT_H * 0.75) / N_IMG_ROWS  // 27.75 pt
   for (let r = imgRow; r < imgRow + N_IMG_ROWS; r++) ws.getRow(r).height = ROW_H
 
   ws.mergeCells(imgRow, 1, imgRow + N_IMG_ROWS - 1, 1)
