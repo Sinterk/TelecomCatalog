@@ -61,9 +61,22 @@ function b64ToBuffer(b64: string): ArrayBuffer {
   return bytes.buffer
 }
 
-async function urlToBuffer(url: string): Promise<ArrayBuffer> {
-  const res = await fetch(url)
-  return res.arrayBuffer()
+function resizeToBuffer(url: string, dw: number, dh: number): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = dw
+      canvas.height = dh
+      canvas.getContext('2d')!.drawImage(img, 0, 0, dw, dh)
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('canvas toBlob failed')); return }
+        blob.arrayBuffer().then(resolve, reject)
+      }, 'image/jpeg', 0.9)
+    }
+    img.onerror = reject
+    img.src = url
+  })
 }
 
 function slugify(cuadrante: Preventivo['cuadrante']): string {
@@ -193,11 +206,11 @@ async function prepareImage(
 ): Promise<ImgData | null> {
   if (!foto?.previewUrl) return null
   try {
-    const [buf, size] = await Promise.all([
-      urlToBuffer(foto.previewUrl),
-      getImgSize(foto.previewUrl),
-    ])
+    const size = await getImgSize(foto.previewUrl)
     const { dw, dh } = displaySize(size.w, size.h)
+    // Resize buffer to exact display dimensions so Excel renders at the correct
+    // size regardless of whether it respects <xdr:ext> or uses native resolution.
+    const buf = await resizeToBuffer(foto.previewUrl, dw, dh)
     console.log(`[Entel IMG] col=${col0} natural=${size.w}×${size.h} display=${dw}×${dh}`)
     return { buf, dw, dh, col0 }
   } catch { return null }
