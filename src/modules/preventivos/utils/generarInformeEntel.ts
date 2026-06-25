@@ -176,8 +176,8 @@ const NO_SIDE     = { style: 'thin' as const,   color: { argb: 'FFFFFFFF' } }
 
 // ── Image sizing ──────────────────────────────────────────────────────────────
 
-const PORTRAIT_H  = 300  // px — vertical images (≈90% of 9-row block, margin on all sides)
-const LANDSCAPE_W = 411  // px — horizontal images
+const PORTRAIT_H  = 327  // px — vertical images (small margin within 9-row block)
+const LANDSCAPE_W = 452  // px — horizontal images
 
 function getImgSize(url: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
