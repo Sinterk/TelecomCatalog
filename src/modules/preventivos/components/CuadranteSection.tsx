@@ -82,16 +82,16 @@ export function CuadranteSection({ preventivoId, cuadrante, onSave }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-slate-400 mb-1">N° Cuadrante <span className="text-red-400">*</span></label>
-          <input type="text" value={cuadrante.cuadrante}
-            onChange={(e) => set('cuadrante', e.target.value)}
-            placeholder="Ej. C-042" className={inputCls} />
-        </div>
-        <div>
           <label className="block text-xs text-slate-400 mb-1">Comuna <span className="text-red-400">*</span></label>
           <input type="text" value={cuadrante.comuna}
             onChange={(e) => set('comuna', e.target.value)}
             placeholder="Ej. Providencia" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">N° Cuadrante <span className="text-red-400">*</span></label>
+          <input type="text" value={cuadrante.cuadrante}
+            onChange={(e) => set('cuadrante', e.target.value)}
+            placeholder="Ej. C-042" className={inputCls} />
         </div>
       </div>
 

@@ -176,8 +176,8 @@ const NO_SIDE     = { style: 'thin' as const,   color: { argb: 'FFFFFFFF' } }
 
 // ── Image sizing ──────────────────────────────────────────────────────────────
 
-const PORTRAIT_H  = 37 * 9   // 333 px — vertical images constrained to this height
-const LANDSCAPE_W = 457       // px    — horizontal images constrained to this width
+const PORTRAIT_H  = 300  // px — vertical images (≈90% of 9-row block, margin on all sides)
+const LANDSCAPE_W = 411  // px — horizontal images
 
 function getImgSize(url: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
@@ -316,9 +316,10 @@ async function writeBlock(
     prepareImage(fotoDsp, 2),
   ])
 
-  // Fixed row height — displaySize now caps dh ≤ PORTRAIT_H, so the block is always
-  // the same height regardless of image content, making layout DPI-independent.
-  const ROW_H = (PORTRAIT_H * 0.75) / N_IMG_ROWS  // 27.75 pt
+  // Fixed row height based on a full-block PORTRAIT reference (333px), NOT on the
+  // actual image height, so the block stays the same size regardless of image content.
+  const BLOCK_REF_PX = 37 * 9  // 333 px — reference block height (image is PORTRAIT_H ≤ this)
+  const ROW_H = (BLOCK_REF_PX * 0.75) / N_IMG_ROWS  // 27.75 pt always
   console.log(`[Entel BLK] base=${base} ROW_H=${ROW_H.toFixed(2)}pt PORTRAIT_H=${PORTRAIT_H}px`)
   for (let r = imgRow; r < imgRow + N_IMG_ROWS; r++) ws.getRow(r).height = ROW_H
 
@@ -344,22 +345,28 @@ async function writeBlock(
   for (const img of [imgAnt, imgDsp]) {
     if (!img) continue
     try {
-      const colPx    = img.col0 === 0 ? COL_A_PX : COL_C_PX
-      const colOffPx = Math.max(colPx - img.dw, 0) / 2
-      console.log(`[Entel IMG] col=${img.col0} dw=${img.dw} dh=${img.dh} blockPx=${blockPx.toFixed(1)} colOffPx=${colOffPx.toFixed(1)}`)
+      const colPx      = img.col0 === 0 ? COL_A_PX : COL_C_PX
+      const colOffPx   = Math.max(colPx - img.dw, 0) / 2
+      const rowOffPx   = Math.max(blockPx - img.dh, 0) / 2  // vertical centering within block
+      // Convert bottom edge of image to row index + intra-row EMU offset
+      const ROW_H_EMU  = Math.round(ROW_H * 12700)
+      const brTotalEMU = Math.round((rowOffPx + img.dh) * PX_TO_EMU)
+      const brRow      = Math.floor(brTotalEMU / ROW_H_EMU)
+      const brRowOff   = brTotalEMU - brRow * ROW_H_EMU
+      console.log(`[Entel IMG] col=${img.col0} dw=${img.dw} dh=${img.dh} blockPx=${blockPx.toFixed(1)} colOffPx=${colOffPx.toFixed(1)} rowOffPx=${rowOffPx.toFixed(1)}`)
       const imgId = workbook.addImage({ buffer: img.buf, extension: 'jpeg' })
       ws.addImage(imgId, {
         tl: {
           nativeCol:    img.col0,
           nativeColOff: Math.round(colOffPx * PX_TO_EMU),
           nativeRow:    imgRow - 1,
-          nativeRowOff: 0,
+          nativeRowOff: Math.round(rowOffPx * PX_TO_EMU),
         },
         br: {
           nativeCol:    img.col0,
           nativeColOff: Math.round((colOffPx + img.dw) * PX_TO_EMU),
-          nativeRow:    imgRow - 1 + N_IMG_ROWS, // start of row after block = bottom edge
-          nativeRowOff: 0,
+          nativeRow:    imgRow - 1 + brRow,
+          nativeRowOff: brRowOff,
         },
         editAs: 'twoCell',
       })

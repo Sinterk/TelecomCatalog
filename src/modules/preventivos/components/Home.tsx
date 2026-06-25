@@ -64,9 +64,10 @@ function CuadranteCard({ record, onSelect, onDelete }: {
     <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 hover:border-brand-500 transition-colors">
       <div className="flex items-start gap-2">
         <button type="button" onClick={onSelect} className="flex-1 text-left min-w-0">
-          <div className="text-sm font-semibold text-white">
-            {record.cuadrante.cuadrante || 'Sin ID'}
-            {record.cuadrante.comuna && <span className="font-normal text-slate-400"> — {record.cuadrante.comuna}</span>}
+          <div className="text-sm text-white">
+            {record.cuadrante.comuna
+              ? <><span className="font-bold">{record.cuadrante.comuna}</span><span className="text-slate-400"> — {record.cuadrante.cuadrante || 'Sin ID'}</span></>
+              : <span className="font-bold">{record.cuadrante.cuadrante || 'Sin ID'}</span>}
           </div>
           {record.cuadrante.nombreCuadrante && (
             <div className="text-xs text-slate-400 mt-0.5 truncate">{record.cuadrante.nombreCuadrante}</div>
