@@ -1,32 +1,34 @@
 import { useEffect } from 'react'
 import { useAttStore } from '../store'
 import { getPhotoBlob } from '@/core/offline/photoStore'
-import type { AttFotoKey } from '../types'
+import type { FotoCategoria } from '../types'
 
-const NAMED_KEYS: AttFotoKey[] = ['cabecera', 'tendidoExterior', 'tendidoInterior', 'medicion']
+const ALL_CATS: FotoCategoria[] = ['tendidoFO', 'cmic', 'medicionTraza', 'reparacionDucto', 'mufaProyectada', 'ingresoRed']
 
 export function useRestoreAttPhotos() {
-  const { records, setFoto, setFotoExtraPreview } = useAttStore()
+  const { records, setFotoAereaPreview, setFotoPreview } = useAttStore()
 
   useEffect(() => {
     let cancelled = false
 
     async function restore() {
       for (const record of Object.values(records)) {
-        for (const key of NAMED_KEYS) {
-          const foto = record.fotos[key]
-          if (!foto || foto.previewUrl || !foto.blobId) continue
-          const entry = await getPhotoBlob(foto.blobId)
+        if (record.fotoAerea?.blobId && !record.fotoAerea.previewUrl) {
+          const entry = await getPhotoBlob(record.fotoAerea.blobId)
           if (!cancelled && entry) {
-            setFoto(record.id, key, { ...foto, previewUrl: URL.createObjectURL(entry.blob) })
+            setFotoAereaPreview(record.id, URL.createObjectURL(entry.blob))
           }
         }
-        for (let i = 0; i < record.fotosExtra.length; i++) {
-          const foto = record.fotosExtra[i]
-          if (foto.previewUrl || !foto.blobId) continue
-          const entry = await getPhotoBlob(foto.blobId)
-          if (!cancelled && entry) {
-            setFotoExtraPreview(record.id, i, URL.createObjectURL(entry.blob))
+
+        for (const cat of ALL_CATS) {
+          const arr = record.fotos[cat] ?? []
+          for (let i = 0; i < arr.length; i++) {
+            const foto = arr[i]
+            if (foto.previewUrl || !foto.blobId) continue
+            const entry = await getPhotoBlob(foto.blobId)
+            if (!cancelled && entry) {
+              setFotoPreview(record.id, cat, i, URL.createObjectURL(entry.blob))
+            }
           }
         }
       }
