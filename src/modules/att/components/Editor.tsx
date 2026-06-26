@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAtt } from '../hooks/useAtt'
 import { useRestoreAttPhotos } from '../hooks/useRestoreAttPhotos'
+import { generarInformeAtt } from '../utils/generarInformeAtt'
 import { SeccionTipo } from './SeccionTipo'
 import { SeccionDatos } from './SeccionDatos'
 import { SeccionDescripcion } from './SeccionDescripcion'
@@ -9,6 +10,7 @@ import { SeccionInfra } from './SeccionInfra'
 import { SeccionFotos } from './SeccionFotos'
 
 type SaveStatus = 'saved' | 'saving'
+type GenStatus = 'idle' | 'generating' | 'error'
 
 export function Editor() {
   const { id } = useParams<{ id: string }>()
@@ -17,6 +19,7 @@ export function Editor() {
   useRestoreAttPhotos()
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  const [genStatus, setGenStatus] = useState<GenStatus>('idle')
   const prevUpdatedAt = useRef<number | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -37,6 +40,25 @@ export function Editor() {
   if (!id || !record) return null
 
   const title = record.ott ? `OTT ${record.ott}` : 'Nuevo informe ATT'
+
+  async function handleGenerar() {
+    if (genStatus === 'generating') return
+    setGenStatus('generating')
+    try {
+      const blob = await generarInformeAtt(record!)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Informe OTT ${record!.ott || 'sin-ott'}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+      setGenStatus('idle')
+    } catch (err) {
+      console.error('[ATT DOCX]', err)
+      setGenStatus('error')
+      setTimeout(() => setGenStatus('idle'), 3000)
+    }
+  }
 
   return (
     <div className="space-y-4 pb-28">
@@ -64,6 +86,15 @@ export function Editor() {
             ? <span className="text-xs text-amber-400 animate-pulse">⏳ Guardando…</span>
             : <span className="text-xs text-green-500">✅ Guardado</span>}
         </div>
+        <button
+          type="button"
+          onClick={handleGenerar}
+          disabled={genStatus === 'generating'}
+          className="py-2.5 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors shrink-0 disabled:opacity-60">
+          {genStatus === 'generating' ? '⏳ Generando…'
+            : genStatus === 'error'  ? '❌ Error'
+            : '📄 Generar DOCX'}
+        </button>
       </div>
     </div>
   )
