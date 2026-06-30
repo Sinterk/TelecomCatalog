@@ -19,6 +19,12 @@ import { ATT_LOGO_B64 } from './logoBase64'
 import { TIPO_PROYECTO_LABELS } from '../types'
 import type { AttRecord } from '../types'
 
+const FONT = 'Calibri'
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+function fechaLarga(d = new Date()) {
+  return `${String(d.getDate()).padStart(2,'0')} ${MESES[d.getMonth()]} ${d.getFullYear()}`
+}
+
 // ─── Unidades ────────────────────────────────────────────────────────────────
 const IN   = 914400   // 1 inch en EMU
 const TWIP = 1440     // twips por pulgada
@@ -75,81 +81,125 @@ function blueShading() {
 }
 
 function boldRun(text: string) {
-  return new TextRun({ text, bold: true, size: 20 })
+  return new TextRun({ text, bold: true, size: 20, font: FONT })
 }
 
 function labelRun(text: string) {
-  return new TextRun({ text, size: 20 })
+  return new TextRun({ text, size: 20, font: FONT })
 }
 
 function sectionHeading(text: string) {
   return new Paragraph({
-    children: [new TextRun({ text, bold: true, color: '4F81BD', size: 26 })],
+    children: [new TextRun({ text, bold: true, color: '4F81BD', size: 26, font: FONT })],
     spacing: { before: 200, after: 0 },
   })
 }
 
-// ─── Cabecera del documento ───────────────────────────────────────────────────
-// Logo va en el cuerpo como imagen en tabla; en el header solo texto para evitar
-// problemas de rels en docx cuando la imagen está anidada en Header > Table.
-function makeHeader(ott: string, fecha: string): Header {
+// ─── Cabecera del documento (2 filas) ────────────────────────────────────────
+const HDR_COLS = [1400, 5040, 2200] // twips, suma 8640
+
+function makeHeader(record: AttRecord, fecha: string): Header {
+  const ott = record.ott || ''
+  const iniciativaContratista = [record.iniciativa, record.contratista].filter(Boolean).join(' - ')
+
   return new Header({
     children: [
       new Table({
         width: { size: PAGE_COL, type: WidthType.DXA },
-        borders: NoBorder,
-        columnWidths: [
-          Math.round(0.23 * PAGE_COL),
-          Math.round(0.62 * PAGE_COL),
-          Math.round(0.15 * PAGE_COL),
-        ],
+        columnWidths: HDR_COLS,
         rows: [
+          // ── Fila 1 ──
           new TableRow({
             children: [
-              // Columna logo (texto placeholder)
+              // Logo (e) entel — texto placeholder)
               new TableCell({
-                borders: NoBorder,
+                borders: ThinBorder,
                 verticalAlign: VerticalAlign.CENTER,
+                width: { size: HDR_COLS[0], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: 'ENTEL', bold: true, color: '0070C0', size: 22 })],
-                  spacing: { before: 0, after: 0 },
+                  children: [new TextRun({ text: 'e) entel', bold: true, color: '006BB6', size: 20, font: FONT })],
+                  spacing: { before: 40, after: 40 },
                 })],
               }),
-              // Columna título
+              // Título
               new TableCell({
-                borders: NoBorder,
+                borders: ThinBorder,
                 verticalAlign: VerticalAlign.CENTER,
-                children: [new Paragraph({
-                  alignment: AlignmentType.CENTER,
-                  children: [
-                    new TextRun({ text: 'INFORME OTT ', bold: true, size: 24 }),
-                    new TextRun({ text: ott, bold: true, size: 24 }),
-                  ],
-                  spacing: { before: 0, after: 0 },
-                })],
-              }),
-              // Columna fecha / página
-              new TableCell({
-                borders: NoBorder,
-                verticalAlign: VerticalAlign.CENTER,
+                width: { size: HDR_COLS[1], type: WidthType.DXA },
                 children: [
                   new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: fecha, size: 18 })],
-                    spacing: { before: 0, after: 0 },
+                    children: [new TextRun({ text: 'INFORME POSTERIOR OTT', bold: true, size: 24, font: FONT })],
+                    spacing: { before: 40, after: 0 },
                   }),
                   new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [
-                      new TextRun({ text: 'Página ', size: 18 }),
-                      new SimpleField('PAGE'),
-                      new TextRun({ text: ' de ', size: 18 }),
-                      new SimpleField('NUMPAGES'),
-                    ],
-                    spacing: { before: 0, after: 0 },
+                    children: [new TextRun({ text: ott, bold: true, size: 24, font: FONT })],
+                    spacing: { before: 0, after: 40 },
                   }),
                 ],
+              }),
+              // Fecha
+              new TableCell({
+                borders: ThinBorder,
+                verticalAlign: VerticalAlign.CENTER,
+                width: { size: HDR_COLS[2], type: WidthType.DXA },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: 'FECHA INFORME', bold: true, size: 16, font: FONT })],
+                    spacing: { before: 40, after: 20 },
+                  }),
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: fecha, size: 18, font: FONT })],
+                    spacing: { before: 0, after: 40 },
+                  }),
+                ],
+              }),
+            ],
+          }),
+          // ── Fila 2 ──
+          new TableRow({
+            children: [
+              // OTT
+              new TableCell({
+                borders: ThinBorder,
+                verticalAlign: VerticalAlign.CENTER,
+                width: { size: HDR_COLS[0], type: WidthType.DXA },
+                children: [new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: ott, size: 18, font: FONT })],
+                  spacing: { before: 40, after: 40 },
+                })],
+              }),
+              // Iniciativa - Contratista
+              new TableCell({
+                borders: ThinBorder,
+                verticalAlign: VerticalAlign.CENTER,
+                width: { size: HDR_COLS[1], type: WidthType.DXA },
+                children: [new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: iniciativaContratista, size: 18, font: FONT })],
+                  spacing: { before: 40, after: 40 },
+                })],
+              }),
+              // Página
+              new TableCell({
+                borders: ThinBorder,
+                verticalAlign: VerticalAlign.CENTER,
+                width: { size: HDR_COLS[2], type: WidthType.DXA },
+                children: [new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({ text: 'Página ', size: 18, font: FONT }),
+                    new SimpleField('PAGE'),
+                    new TextRun({ text: ' de ', size: 18, font: FONT }),
+                    new SimpleField('NUMPAGES'),
+                  ],
+                  spacing: { before: 40, after: 40 },
+                })],
               }),
             ],
           }),
@@ -194,7 +244,7 @@ function tipoLabelCell(tipo: keyof typeof TIPO_PROYECTO_LABELS) {
     verticalAlign: VerticalAlign.CENTER,
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: TIPO_PROYECTO_LABELS[tipo], bold: true, color: 'FFFFFF', font: 'Arial Black', size: 18 })],
+      children: [new TextRun({ text: TIPO_PROYECTO_LABELS[tipo], bold: true, color: 'FFFFFF', font: FONT, size: 18 })],
       spacing: { before: 40, after: 40 },
     })],
   })
@@ -207,7 +257,7 @@ function tipoCheckCell(selected: boolean) {
     verticalAlign: VerticalAlign.CENTER,
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: selected ? 'X' : '', bold: true, size: 22 })],
+      children: [new TextRun({ text: selected ? 'X' : '', bold: true, size: 22, font: FONT })],
       spacing: { before: 40, after: 40 },
     })],
   })
@@ -265,47 +315,46 @@ function makeDatosSection(r: AttRecord) {
 }
 
 // ─── Sección 3: Descripción general ──────────────────────────────────────────
-function listPara(text: string) {
+function para(text: string, opts: { bold?: boolean; indent?: boolean } = {}) {
   return new Paragraph({
-    children: [new TextRun({ text: `• ${text}`, size: 20 })],
+    children: [new TextRun({ text, size: 20, font: FONT, bold: opts.bold })],
     spacing: { before: 40, after: 40 },
-    indent: { left: 360 },
+    indent: opts.indent ? { left: 360 } : undefined,
   })
 }
 
 function makeDescripcionSection(r: AttRecord) {
   const items: Paragraph[] = []
 
+  // Tendidos (formato redactado, uno por párrafo)
   for (const t of r.tramos) {
-    const parts = [t.tipoCable, t.metraje ? `${t.metraje}m` : '', t.desde, t.hasta]
-      .filter(Boolean).join(' — ')
-    if (parts) items.push(new Paragraph({ children: [new TextRun({ text: parts, size: 20 })], spacing: { before: 40, after: 40 } }))
+    if (!t.tipoCable && !t.metraje && !t.desde && !t.hasta) continue
+    const sentence =
+      `Se realiza tendido de ${t.metraje || '___'}m de cable ${t.tipoCable || '___'} ` +
+      `desde ${t.desde || '___'} hasta ${t.hasta || '___'};`
+    items.push(para(sentence))
   }
 
-  if (r.descripcionCabecera) {
-    items.push(new Paragraph({ children: [new TextRun({ text: r.descripcionCabecera, size: 20 })], spacing: { before: 40, after: 40 } }))
-  }
-
-  if (r.instalaCMIC)          items.push(new Paragraph({ children: [new TextRun({ text: 'Se instala CMIC en cliente', size: 20 })], spacing: { before: 40, after: 40 } }))
-  if (r.instalaMufas)         items.push(new Paragraph({ children: [new TextRun({ text: 'Se instala mufa proyectada', size: 20 })], spacing: { before: 40, after: 40 } }))
-  if (r.tieneReparacionDucto) items.push(new Paragraph({ children: [new TextRun({ text: 'Se realiza calicata y reparación de ducto', size: 20 })], spacing: { before: 40, after: 40 } }))
+  if (r.instalaCMIC)          items.push(para('Se instala CMIC en cliente;'))
+  if (r.instalaMufas)         items.push(para('Se instala mufa proyectada;'))
+  if (r.tieneReparacionDucto) items.push(para('Se realiza calicata y reparación de ducto;'))
 
   if (r.tieneIngresoRed) {
-    items.push(new Paragraph({ children: [new TextRun({ text: 'Con ingreso a red', size: 20 })], spacing: { before: 40, after: 40 } }))
+    items.push(para('Con ingreso a red;'))
     const { nodo, rack, odf, fo } = r.ingresoRed
-    if (nodo) items.push(new Paragraph({ children: [new TextRun({ text: `NODO    ${nodo}`, size: 20 })], spacing: { before: 20, after: 20 } }))
-    if (rack) items.push(new Paragraph({ children: [new TextRun({ text: `RACK    ${rack}`, size: 20 })], spacing: { before: 20, after: 20 } }))
-    if (odf)  items.push(new Paragraph({ children: [new TextRun({ text: `ODF     ${odf}`, size: 20 })], spacing: { before: 20, after: 20 } }))
-    if (fo)   items.push(new Paragraph({ children: [new TextRun({ text: `FO      ${fo}`, size: 20 })], spacing: { before: 20, after: 20 } }))
+    if (nodo) items.push(para(`NODO    ${nodo}`, { indent: true }))
+    if (rack) items.push(para(`RACK    ${rack}`, { indent: true }))
+    if (odf)  items.push(para(`ODF     ${odf}`,  { indent: true }))
+    if (fo)   items.push(para(`FO      ${fo}`,   { indent: true }))
   }
 
   for (const h of r.hitos) {
-    const text = [h.fecha, h.descripcion].filter(Boolean).join(' ')
-    if (text) items.push(listPara(text))
+    const text = [h.fecha, h.descripcion].filter(Boolean).join(' — ')
+    if (text) items.push(para(`• ${text}`, { indent: true }))
   }
 
   if (items.length === 0) {
-    items.push(new Paragraph({ children: [new TextRun({ text: ' ', size: 20 })], spacing: { before: 40, after: 40 } }))
+    items.push(para(' '))
   }
 
   return items
@@ -325,7 +374,7 @@ function infraHeaderCell(text: string) {
     borders: ThinBorder,
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18 })],
+      children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18, font: FONT })],
     })],
   })
 }
@@ -335,7 +384,7 @@ function infraDataCell(text: string, center = false) {
     borders: ThinBorder,
     children: [new Paragraph({
       alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
-      children: [new TextRun({ text, size: 20 })],
+      children: [new TextRun({ text, size: 20, font: FONT })],
     })],
   })
 }
@@ -436,10 +485,15 @@ async function makeFotosSection(r: AttRecord) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
-  const fecha = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const fecha = fechaLarga()
   const fotosElements = await makeFotosSection(record)
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: { run: { font: FONT, size: 20 } },
+      },
+    },
     sections: [{
       properties: {
         page: {
@@ -454,12 +508,10 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
           },
         },
       },
-      headers: { default: makeHeader(record.ott, fecha) },
+      headers: { default: makeHeader(record, fecha) },
       children: [
-        makeLogoBlock(),
-
         // Sección 1
-        new Paragraph({ children: [new TextRun({ text: '1. TIPO DE PROYECTO', size: 20 })], spacing: { before: 0, after: 80 } }),
+        sectionHeading('1. TIPO DE PROYECTO'),
         makeTipoTable(record.tipoProyecto),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 

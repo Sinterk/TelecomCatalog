@@ -81,15 +81,21 @@ export function SeccionDatos({ recordId }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Latitud</label>
-            <input type="text" value={record.coordsInicio.lat}
-              onChange={(e) => set({ coordsInicio: { ...record.coordsInicio, lat: e.target.value } })}
-              placeholder="-33.4569…" className={inputCls} />
+            <div className="flex items-center gap-1.5">
+              <input type="text" value={record.coordsInicio.lat}
+                onChange={(e) => set({ coordsInicio: { ...record.coordsInicio, lat: e.target.value } })}
+                placeholder="-33.4569…" className={inputCls} />
+              <span className="text-slate-300 text-sm font-semibold shrink-0">S</span>
+            </div>
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Longitud</label>
-            <input type="text" value={record.coordsInicio.lng}
-              onChange={(e) => set({ coordsInicio: { ...record.coordsInicio, lng: e.target.value } })}
-              placeholder="-70.6483…" className={inputCls} />
+            <div className="flex items-center gap-1.5">
+              <input type="text" value={record.coordsInicio.lng}
+                onChange={(e) => set({ coordsInicio: { ...record.coordsInicio, lng: e.target.value } })}
+                placeholder="-70.6483…" className={inputCls} />
+              <span className="text-slate-300 text-sm font-semibold shrink-0">W</span>
+            </div>
           </div>
         </div>
       </div>
@@ -99,15 +105,21 @@ export function SeccionDatos({ recordId }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Latitud</label>
-            <input type="text" value={record.coordsTermino.lat}
-              onChange={(e) => set({ coordsTermino: { ...record.coordsTermino, lat: e.target.value } })}
-              placeholder="-33.4569…" className={inputCls} />
+            <div className="flex items-center gap-1.5">
+              <input type="text" value={record.coordsTermino.lat}
+                onChange={(e) => set({ coordsTermino: { ...record.coordsTermino, lat: e.target.value } })}
+                placeholder="-33.4569…" className={inputCls} />
+              <span className="text-slate-300 text-sm font-semibold shrink-0">S</span>
+            </div>
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Longitud</label>
-            <input type="text" value={record.coordsTermino.lng}
-              onChange={(e) => set({ coordsTermino: { ...record.coordsTermino, lng: e.target.value } })}
-              placeholder="-70.6483…" className={inputCls} />
+            <div className="flex items-center gap-1.5">
+              <input type="text" value={record.coordsTermino.lng}
+                onChange={(e) => set({ coordsTermino: { ...record.coordsTermino, lng: e.target.value } })}
+                placeholder="-70.6483…" className={inputCls} />
+              <span className="text-slate-300 text-sm font-semibold shrink-0">W</span>
+            </div>
           </div>
         </div>
       </div>

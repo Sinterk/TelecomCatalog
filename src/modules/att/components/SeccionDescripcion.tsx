@@ -78,16 +78,6 @@ export function SeccionDescripcion({ recordId, processFotoAerea }: Props) {
         ))}
       </div>
 
-      {/* Descripción cabecera */}
-      <div>
-        <label className="block text-xs text-slate-400 mb-1">Descripción de cabecera</label>
-        <textarea value={record.descripcionCabecera}
-          onChange={(e) => update(recordId, { descripcionCabecera: e.target.value })}
-          placeholder="Describe el trabajo realizado en la cabecera…"
-          rows={3}
-          className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:border-brand-500 focus:outline-none placeholder-slate-500 resize-none" />
-      </div>
-
       {/* Condiciones */}
       <div className="space-y-3 pt-2 border-t border-slate-700">
         <p className="text-xs font-medium text-slate-300">Condiciones del proyecto</p>
