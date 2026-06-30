@@ -4,6 +4,8 @@ export interface FotoEntry {
   blobId?: string
   capturedAt: string
   annotated: boolean
+  categoria: string    // key de FOTO_CATEGORIAS o 'otro'
+  otroLabel?: string   // texto libre cuando categoria === 'otro'
 }
 
 export type TipoProyecto =
@@ -62,13 +64,16 @@ export interface Infraestructura {
   postesEntel:       { usa: boolean }
 }
 
-export type FotoCategoria =
-  | 'tendidoFO'
-  | 'cmic'
-  | 'medicionTraza'
-  | 'reparacionDucto'
-  | 'mufaProyectada'
-  | 'ingresoRed'
+export const FOTO_CATEGORIAS = [
+  { key: 'tendidoFO',       label: 'Tendido FO' },
+  { key: 'cmic',            label: 'CMIC / Cabecera' },
+  { key: 'medicionTraza',   label: 'Medición traza' },
+  { key: 'reparacionDucto', label: 'Reparación de ducto' },
+  { key: 'mufaProyectada',  label: 'Mufa proyectada' },
+  { key: 'ingresoRed',      label: 'Ingreso a red' },
+] as const
+
+export type FotoCategoria = typeof FOTO_CATEGORIAS[number]['key']
 
 export interface AttRecord {
   id: string
@@ -104,6 +109,6 @@ export interface AttRecord {
   // Sección 4 — Infraestructura
   infraestructura: Infraestructura
 
-  // Sección 5 — Fotos por categoría
-  fotos: Partial<Record<FotoCategoria, FotoEntry[]>>
+  // Sección 5 — Fotos (lista plana; cada una lleva su encabezado)
+  fotos: FotoEntry[]
 }

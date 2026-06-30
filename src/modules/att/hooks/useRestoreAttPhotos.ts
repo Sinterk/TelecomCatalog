@@ -1,9 +1,6 @@
 import { useEffect } from 'react'
 import { useAttStore } from '../store'
 import { getPhotoBlob } from '@/core/offline/photoStore'
-import type { FotoCategoria } from '../types'
-
-const ALL_CATS: FotoCategoria[] = ['tendidoFO', 'cmic', 'medicionTraza', 'reparacionDucto', 'mufaProyectada', 'ingresoRed']
 
 export function useRestoreAttPhotos() {
   const { records, setFotoAereaPreview, setFotoPreview } = useAttStore()
@@ -20,15 +17,12 @@ export function useRestoreAttPhotos() {
           }
         }
 
-        for (const cat of ALL_CATS) {
-          const arr = record.fotos[cat] ?? []
-          for (let i = 0; i < arr.length; i++) {
-            const foto = arr[i]
-            if (foto.previewUrl || !foto.blobId) continue
-            const entry = await getPhotoBlob(foto.blobId)
-            if (!cancelled && entry) {
-              setFotoPreview(record.id, cat, i, URL.createObjectURL(entry.blob))
-            }
+        for (let i = 0; i < record.fotos.length; i++) {
+          const foto = record.fotos[i]
+          if (foto.previewUrl || !foto.blobId) continue
+          const entry = await getPhotoBlob(foto.blobId)
+          if (!cancelled && entry) {
+            setFotoPreview(record.id, i, URL.createObjectURL(entry.blob))
           }
         }
       }

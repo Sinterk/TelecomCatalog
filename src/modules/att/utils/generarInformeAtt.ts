@@ -17,7 +17,7 @@ import {
 } from 'docx'
 import { ATT_LOGO_B64 } from './logoBase64'
 import { TIPO_PROYECTO_LABELS } from '../types'
-import type { AttRecord, FotoCategoria } from '../types'
+import type { AttRecord } from '../types'
 
 // ─── Unidades ────────────────────────────────────────────────────────────────
 const IN   = 914400   // 1 inch en EMU
@@ -357,13 +357,18 @@ function makeInfraTable(r: AttRecord) {
 }
 
 // ─── Sección 5: Registro fotográfico ─────────────────────────────────────────
-const CAT_LABELS: Record<FotoCategoria, string> = {
+const CAT_KEY_TO_LABEL: Record<string, string> = {
   tendidoFO:       'TENDIDO FO',
   cmic:            'CMIC',
   medicionTraza:   'MEDICIÓN TRAZA',
   reparacionDucto: 'REPARACIÓN DE DUCTO',
   mufaProyectada:  'MUFA PROYECTADA',
   ingresoRed:      'INGRESO A RED',
+}
+
+function fotoLabel(f: AttRecord['fotos'][number]): string {
+  if (f.categoria === 'otro') return (f.otroLabel?.trim() || 'OTRO').toUpperCase()
+  return CAT_KEY_TO_LABEL[f.categoria] ?? f.categoria.toUpperCase()
 }
 
 const PHOTO_MAX_W_PX = Math.round(2.8 * 96)
@@ -406,27 +411,24 @@ function photoCell(photo: PhotoData | null, label: string) {
 
 async function makeFotosSection(r: AttRecord) {
   const elements: (Paragraph | Table)[] = []
-  const activeCats: FotoCategoria[] = ['tendidoFO']
-  if (r.instalaCMIC)          activeCats.push('cmic')
-  activeCats.push('medicionTraza')
-  if (r.tieneReparacionDucto) activeCats.push('reparacionDucto')
-  if (r.instalaMufas)         activeCats.push('mufaProyectada')
-  if (r.tieneIngresoRed)      activeCats.push('ingresoRed')
+  if (r.fotos.length === 0) return elements
 
-  for (const cat of activeCats) {
-    const fotos = r.fotos[cat] ?? []
-    if (fotos.length === 0) continue
-    const photos = await Promise.all(fotos.map((f) => f.previewUrl ? fetchPhoto(f.previewUrl) : Promise.resolve(null)))
-    for (let i = 0; i < photos.length; i += 2) {
-      elements.push(new Table({
-        width: { size: PAGE_COL, type: WidthType.DXA },
-        rows: [new TableRow({ children: [
-          photoCell(photos[i] ?? null, CAT_LABELS[cat]),
-          photoCell(photos[i + 1] ?? null, photos[i + 1] ? CAT_LABELS[cat] : ''),
-        ]})],
-      }))
-      elements.push(new Paragraph({ spacing: { before: 60, after: 0 } }))
-    }
+  const photos = await Promise.all(
+    r.fotos.map((f) => f.previewUrl ? fetchPhoto(f.previewUrl) : Promise.resolve(null))
+  )
+
+  for (let i = 0; i < r.fotos.length; i += 2) {
+    const labelL = fotoLabel(r.fotos[i])
+    const right  = r.fotos[i + 1]
+    const labelR = right ? fotoLabel(right) : ''
+    elements.push(new Table({
+      width: { size: PAGE_COL, type: WidthType.DXA },
+      rows: [new TableRow({ children: [
+        photoCell(photos[i] ?? null, labelL),
+        photoCell(photos[i + 1] ?? null, labelR),
+      ]})],
+    }))
+    elements.push(new Paragraph({ spacing: { before: 60, after: 0 } }))
   }
 
   return elements

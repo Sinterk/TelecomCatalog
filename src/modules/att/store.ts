@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { nanoid } from '@/core/utils/nanoid'
 import type {
-  AttRecord, FotoEntry, FotoCategoria,
+  AttRecord, FotoEntry,
   TramoCable, Hito, InfraItem, Infraestructura,
 } from './types'
 
@@ -36,7 +36,7 @@ export function emptyAttRecord(id: string, now: number): AttRecord {
     ingresoRed: { nodo: '', rack: '', odf: '', fo: '' },
     hitos: [],
     infraestructura: emptyInfra(),
-    fotos: {},
+    fotos: [],
   }
 }
 
@@ -59,9 +59,10 @@ interface AttState {
   removeFotoAerea: (id: string) => void
   setFotoAereaPreview: (id: string, previewUrl: string) => void
 
-  addFoto: (id: string, cat: FotoCategoria, entry: FotoEntry) => void
-  removeFoto: (id: string, cat: FotoCategoria, index: number) => void
-  setFotoPreview: (id: string, cat: FotoCategoria, index: number, previewUrl: string) => void
+  addFoto: (id: string, entry: FotoEntry) => void
+  removeFoto: (id: string, index: number) => void
+  updateFoto: (id: string, index: number, data: Partial<FotoEntry>) => void
+  setFotoPreview: (id: string, index: number, previewUrl: string) => void
 }
 
 function touch(rec: AttRecord, extra?: Partial<AttRecord>): AttRecord {
@@ -172,47 +173,48 @@ export const useAttStore = create<AttState>()(
         })
       },
 
-      addFoto(id, cat, entry) {
+      addFoto(id, entry) {
         set((s) => {
           const rec = s.records[id]
           if (!rec) return s
-          const prev = rec.fotos[cat] ?? []
-          return { records: { ...s.records, [id]: touch(rec, { fotos: { ...rec.fotos, [cat]: [...prev, entry] } }) } }
+          return { records: { ...s.records, [id]: touch(rec, { fotos: [...rec.fotos, entry] }) } }
         })
       },
 
-      removeFoto(id, cat, index) {
+      removeFoto(id, index) {
         set((s) => {
           const rec = s.records[id]
           if (!rec) return s
-          const prev = rec.fotos[cat] ?? []
-          return { records: { ...s.records, [id]: touch(rec, { fotos: { ...rec.fotos, [cat]: prev.filter((_, i) => i !== index) } }) } }
+          return { records: { ...s.records, [id]: touch(rec, { fotos: rec.fotos.filter((_, i) => i !== index) }) } }
         })
       },
 
-      setFotoPreview(id, cat, index, previewUrl) {
+      updateFoto(id, index, data) {
         set((s) => {
           const rec = s.records[id]
           if (!rec) return s
-          const prev = rec.fotos[cat] ?? []
-          const next = prev.map((f, i) => i === index ? { ...f, previewUrl } : f)
-          return { records: { ...s.records, [id]: { ...rec, fotos: { ...rec.fotos, [cat]: next } } } }
+          const fotos = rec.fotos.map((f, i) => i === index ? { ...f, ...data } : f)
+          return { records: { ...s.records, [id]: touch(rec, { fotos }) } }
+        })
+      },
+
+      setFotoPreview(id, index, previewUrl) {
+        set((s) => {
+          const rec = s.records[id]
+          if (!rec) return s
+          const fotos = rec.fotos.map((f, i) => i === index ? { ...f, previewUrl } : f)
+          return { records: { ...s.records, [id]: { ...rec, fotos } } }
         })
       },
     }),
     {
-      name: 'att-store-v2',
+      name: 'att-store-v3',
       partialize: (s) => ({
         records: Object.fromEntries(
           Object.entries(s.records).map(([id, rec]) => [id, {
             ...rec,
             fotoAerea: rec.fotoAerea ? { ...rec.fotoAerea, previewUrl: '' } : undefined,
-            fotos: Object.fromEntries(
-              Object.entries(rec.fotos).map(([cat, arr]) => [
-                cat,
-                (arr ?? []).map((f) => ({ ...f, previewUrl: '' })),
-              ])
-            ),
+            fotos: rec.fotos.map((f) => ({ ...f, previewUrl: '' })),
           }])
         ),
       }),

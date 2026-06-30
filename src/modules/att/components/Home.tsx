@@ -47,7 +47,7 @@ export function Home() {
 function AttCard({ record, onSelect, onDelete }: {
   record: AttRecord; onSelect: () => void; onDelete: () => void
 }) {
-  const fotoCount = Object.values(record.fotos).reduce((n, arr) => n + (arr?.length ?? 0), 0)
+  const fotoCount = record.fotos.length
   const tipoLabel = record.tipoProyecto ? TIPO_PROYECTO_LABELS[record.tipoProyecto] : null
 
   return (
