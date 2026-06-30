@@ -171,7 +171,7 @@ function makeLogoBlock(): Paragraph {
           width:  Math.round(1.5 * IN),
           height: Math.round(1.5 * (92 / 315) * IN),
         },
-        type: 'jpeg',
+        type: 'jpg',
       }),
     ],
     spacing: { before: 0, after: 120 },
@@ -392,7 +392,7 @@ function photoCell(photo: PhotoData | null, label: string) {
   if (photo) {
     children.push(new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new ImageRun({ data: photo.buffer, transformation: { width: photo.wEmu, height: photo.hEmu }, type: 'jpeg' })],
+      children: [new ImageRun({ data: photo.buffer, transformation: { width: photo.wEmu, height: photo.hEmu }, type: 'jpg' })],
       spacing: { before: 0, after: 40 },
     }))
   }
