@@ -88,10 +88,11 @@ function labelRun(text: string) {
   return new TextRun({ text, size: 20, font: FONT })
 }
 
-function sectionHeading(text: string) {
+function sectionHeading(text: string, newPage = false) {
   return new Paragraph({
     children: [new TextRun({ text, bold: true, color: '4F81BD', size: 26, font: FONT })],
     spacing: { before: 200, after: 0 },
+    pageBreakBefore: newPage,
   })
 }
 
@@ -483,6 +484,8 @@ async function makeFotosSection(r: AttRecord) {
   )
 
   const HALF = Math.round(PAGE_COL / 2)
+  const gap  = () => new Paragraph({ spacing: { before: 80,  after: 0 } })
+  const sep  = () => new Paragraph({ spacing: { before: 160, after: 0 } })
 
   let i = 0
   while (i < r.fotos.length) {
@@ -490,37 +493,53 @@ async function makeFotosSection(r: AttRecord) {
     const label  = fotoLabel(r.fotos[i])
     const isLand = photo?.isLandscape ?? false
 
-    let tbl: Table
     if (isLand) {
-      // Foto horizontal → fila única, ancho completo
-      tbl = new Table({
+      // Foto horizontal → tabla ancho completo, label centrado, separados por espacio
+      elements.push(new Table({
         width: { size: PAGE_COL, type: WidthType.DXA },
         columnWidths: [PAGE_COL],
-        rows: [labelRow([label], PAGE_COL), photoRow([photo], PAGE_COL)],
-      })
+        rows: [labelRow([label], PAGE_COL)],
+      }))
+      elements.push(gap())
+      elements.push(new Table({
+        width: { size: PAGE_COL, type: WidthType.DXA },
+        columnWidths: [PAGE_COL],
+        rows: [photoRow([photo], PAGE_COL)],
+      }))
       i++
     } else if (i + 1 < r.fotos.length && !(photos[i + 1]?.isLandscape)) {
-      // Par de fotos verticales
+      // Par de fotos verticales: labels / espacio / fotos
       const photo2 = photos[i + 1]
       const label2 = fotoLabel(r.fotos[i + 1])
-      tbl = new Table({
+      elements.push(new Table({
         width: { size: PAGE_COL, type: WidthType.DXA },
         columnWidths: [HALF, HALF],
-        rows: [labelRow([label, label2], HALF), photoRow([photo, photo2], HALF)],
-      })
+        rows: [labelRow([label, label2], HALF)],
+      }))
+      elements.push(gap())
+      elements.push(new Table({
+        width: { size: PAGE_COL, type: WidthType.DXA },
+        columnWidths: [HALF, HALF],
+        rows: [photoRow([photo, photo2], HALF)],
+      }))
       i += 2
     } else {
-      // Foto vertical sin par → media página, sin celda vacía
-      tbl = new Table({
+      // Foto vertical sola → media página, sin celda vacía
+      elements.push(new Table({
         width: { size: HALF, type: WidthType.DXA },
         columnWidths: [HALF],
-        rows: [labelRow([label], HALF), photoRow([photo], HALF)],
-      })
+        rows: [labelRow([label], HALF)],
+      }))
+      elements.push(gap())
+      elements.push(new Table({
+        width: { size: HALF, type: WidthType.DXA },
+        columnWidths: [HALF],
+        rows: [photoRow([photo], HALF)],
+      }))
       i++
     }
 
-    elements.push(tbl)
-    elements.push(new Paragraph({ spacing: { before: 60, after: 0 } }))
+    elements.push(sep())
   }
 
   return elements
@@ -553,6 +572,9 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
       },
       headers: { default: makeHeader(record, fecha) },
       children: [
+        // Logo Entel en cuerpo
+        makeLogoBlock(),
+
         // Sección 1
         sectionHeading('1. TIPO DE PROYECTO'),
         makeTipoTable(record.tipoProyecto),
@@ -573,8 +595,8 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
         makeInfraTable(record),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
-        // Sección 5
-        sectionHeading('5. DETALLE DE SINGULARIDADES Y REGISTROS FOTOGRÁFICOS.'),
+        // Sección 5 – página nueva
+        sectionHeading('5. DETALLE DE SINGULARIDADES Y REGISTROS FOTOGRÁFICOS.', true),
         ...fotosElements,
       ],
     }],
