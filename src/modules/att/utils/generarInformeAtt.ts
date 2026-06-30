@@ -420,41 +420,57 @@ function fotoLabel(f: AttRecord['fotos'][number]): string {
   return CAT_KEY_TO_LABEL[f.categoria] ?? f.categoria.toUpperCase()
 }
 
-const PHOTO_MAX_W_PX = Math.round(2.8 * 96)
-const PHOTO_MAX_H_PX = Math.round(3.2 * 96)
+// Horizontal: 5.6 × 3.5 in.  Vertical: 2.7 × 3.5 in.
+const PORT_MAX_W = Math.round(2.7 * 96)
+const PORT_MAX_H = Math.round(3.5 * 96)
+const LAND_MAX_W = Math.round(5.6 * 96)
+const LAND_MAX_H = Math.round(3.5 * 96)
 
-interface PhotoData { buffer: ArrayBuffer; wPx: number; hPx: number }
+interface PhotoData { buffer: ArrayBuffer; wPx: number; hPx: number; isLandscape: boolean }
 
 async function fetchPhoto(url: string): Promise<PhotoData | null> {
   try {
     const [buf, dims] = await Promise.all([urlToBuffer(url), getImageSize(url)])
-    const s = scaleToBox(dims.w, dims.h, PHOTO_MAX_W_PX, PHOTO_MAX_H_PX)
-    return { buffer: buf, wPx: s.w, hPx: s.h }
+    const isLandscape = dims.w > dims.h * 1.3
+    const s = scaleToBox(dims.w, dims.h, isLandscape ? LAND_MAX_W : PORT_MAX_W, isLandscape ? LAND_MAX_H : PORT_MAX_H)
+    return { buffer: buf, wPx: s.w, hPx: s.h, isLandscape }
   } catch {
     return null
   }
 }
 
-function photoCell(photo: PhotoData | null, label: string) {
-  const children: Paragraph[] = [
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: label, bold: true, size: 18 })],
-      spacing: { before: 40, after: 60 },
-    }),
-  ]
-  if (photo) {
-    children.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new ImageRun({ data: photo.buffer, transformation: { width: photo.wPx, height: photo.hPx }, type: 'jpg' })],
-      spacing: { before: 0, after: 40 },
-    }))
-  }
-  return new TableCell({
-    borders: ThinBorder,
-    verticalAlign: VerticalAlign.TOP,
-    width: { size: Math.round(0.5 * PAGE_COL), type: WidthType.DXA },
-    children,
+function labelRow(labels: string[], colW: number) {
+  return new TableRow({
+    children: labels.map((text) =>
+      new TableCell({
+        borders: ThinBorder,
+        width: { size: colW, type: WidthType.DXA },
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text, bold: true, size: 18, font: FONT })],
+          spacing: { before: 40, after: 40 },
+        })],
+      })
+    ),
+  })
+}
+
+function photoRow(photos: (PhotoData | null)[], colW: number) {
+  return new TableRow({
+    children: photos.map((photo) =>
+      new TableCell({
+        borders: ThinBorder,
+        verticalAlign: VerticalAlign.TOP,
+        width: { size: colW, type: WidthType.DXA },
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: photo
+            ? [new ImageRun({ data: photo.buffer, transformation: { width: photo.wPx, height: photo.hPx }, type: 'jpg' })]
+            : [],
+          spacing: { before: 40, after: 40 },
+        })],
+      })
+    ),
   })
 }
 
@@ -466,17 +482,44 @@ async function makeFotosSection(r: AttRecord) {
     r.fotos.map((f) => f.previewUrl ? fetchPhoto(f.previewUrl) : Promise.resolve(null))
   )
 
-  for (let i = 0; i < r.fotos.length; i += 2) {
-    const labelL = fotoLabel(r.fotos[i])
-    const right  = r.fotos[i + 1]
-    const labelR = right ? fotoLabel(right) : ''
-    elements.push(new Table({
-      width: { size: PAGE_COL, type: WidthType.DXA },
-      rows: [new TableRow({ children: [
-        photoCell(photos[i] ?? null, labelL),
-        photoCell(photos[i + 1] ?? null, labelR),
-      ]})],
-    }))
+  const HALF = Math.round(PAGE_COL / 2)
+
+  let i = 0
+  while (i < r.fotos.length) {
+    const photo  = photos[i]
+    const label  = fotoLabel(r.fotos[i])
+    const isLand = photo?.isLandscape ?? false
+
+    let tbl: Table
+    if (isLand) {
+      // Foto horizontal → fila única, ancho completo
+      tbl = new Table({
+        width: { size: PAGE_COL, type: WidthType.DXA },
+        columnWidths: [PAGE_COL],
+        rows: [labelRow([label], PAGE_COL), photoRow([photo], PAGE_COL)],
+      })
+      i++
+    } else if (i + 1 < r.fotos.length && !(photos[i + 1]?.isLandscape)) {
+      // Par de fotos verticales
+      const photo2 = photos[i + 1]
+      const label2 = fotoLabel(r.fotos[i + 1])
+      tbl = new Table({
+        width: { size: PAGE_COL, type: WidthType.DXA },
+        columnWidths: [HALF, HALF],
+        rows: [labelRow([label, label2], HALF), photoRow([photo, photo2], HALF)],
+      })
+      i += 2
+    } else {
+      // Foto vertical sin par → media página, sin celda vacía
+      tbl = new Table({
+        width: { size: HALF, type: WidthType.DXA },
+        columnWidths: [HALF],
+        rows: [labelRow([label], HALF), photoRow([photo], HALF)],
+      })
+      i++
+    }
+
+    elements.push(tbl)
     elements.push(new Paragraph({ spacing: { before: 60, after: 0 } }))
   }
 
