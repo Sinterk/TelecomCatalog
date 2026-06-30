@@ -168,8 +168,8 @@ function makeLogoBlock(): Paragraph {
       new ImageRun({
         data: logoData,
         transformation: {
-          width:  Math.round(1.5 * IN),
-          height: Math.round(1.5 * (92 / 315) * IN),
+          width:  Math.round(1.5 * 96),              // px a 96 DPI
+          height: Math.round(1.5 * (92 / 315) * 96),
         },
         type: 'jpg',
       }),
@@ -369,13 +369,13 @@ const CAT_LABELS: Record<FotoCategoria, string> = {
 const PHOTO_MAX_W_PX = Math.round(2.8 * 96)
 const PHOTO_MAX_H_PX = Math.round(3.2 * 96)
 
-interface PhotoData { buffer: ArrayBuffer; wEmu: number; hEmu: number }
+interface PhotoData { buffer: ArrayBuffer; wPx: number; hPx: number }
 
 async function fetchPhoto(url: string): Promise<PhotoData | null> {
   try {
     const [buf, dims] = await Promise.all([urlToBuffer(url), getImageSize(url)])
     const s = scaleToBox(dims.w, dims.h, PHOTO_MAX_W_PX, PHOTO_MAX_H_PX)
-    return { buffer: buf, wEmu: Math.round(s.w * 9525), hEmu: Math.round(s.h * 9525) }
+    return { buffer: buf, wPx: s.w, hPx: s.h }
   } catch {
     return null
   }
@@ -392,7 +392,7 @@ function photoCell(photo: PhotoData | null, label: string) {
   if (photo) {
     children.push(new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new ImageRun({ data: photo.buffer, transformation: { width: photo.wEmu, height: photo.hEmu }, type: 'jpg' })],
+      children: [new ImageRun({ data: photo.buffer, transformation: { width: photo.wPx, height: photo.hPx }, type: 'jpg' })],
       spacing: { before: 0, after: 40 },
     }))
   }
