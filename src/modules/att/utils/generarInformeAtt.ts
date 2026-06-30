@@ -5,9 +5,9 @@ import {
   Header,
   ImageRun,
   Packer,
-  PageNumber,
   Paragraph,
   ShadingType,
+  SimpleField,
   Table,
   TableCell,
   TableRow,
@@ -20,18 +20,17 @@ import { TIPO_PROYECTO_LABELS } from '../types'
 import type { AttRecord, FotoCategoria } from '../types'
 
 // ─── Unidades ────────────────────────────────────────────────────────────────
-const IN = 914400          // 1 inch en EMU
-const PT = 12700           // 1 punto en EMU
-const TWIP = 1440          // twips por pulgada
+const IN   = 914400   // 1 inch en EMU
+const TWIP = 1440     // twips por pulgada
 
 // ─── Layout page ─────────────────────────────────────────────────────────────
 const PAGE_W   = Math.round(8.5  * TWIP)   // 12240 twips
 const MARGIN   = Math.round(1.25 * TWIP)   // 1800 twips
 const PAGE_COL = PAGE_W - 2 * MARGIN       // 8640 twips columna útil
 
-// ─── Helpers base64 / imagen ─────────────────────────────────────────────────
+// ─── Helpers imagen ───────────────────────────────────────────────────────────
 function b64ToUint8(b64: string): Uint8Array {
-  const bin = atob(b64)
+  const bin = atob(b64.trim())
   const buf = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i)
   return buf
@@ -52,18 +51,16 @@ function getImageSize(url: string): Promise<{ w: number; h: number }> {
 }
 
 function scaleToBox(w: number, h: number, maxW: number, maxH: number) {
-  const scaleW = maxW / w
-  const scaleH = maxH / h
-  const scale = Math.min(1, scaleW, scaleH)
+  const scale = Math.min(1, maxW / w, maxH / h)
   return { w: Math.round(w * scale), h: Math.round(h * scale) }
 }
 
 // ─── Estilos comunes ──────────────────────────────────────────────────────────
 const NoBorder = {
-  top:    { style: BorderStyle.NIL, size: 0, color: 'auto' },
-  bottom: { style: BorderStyle.NIL, size: 0, color: 'auto' },
-  left:   { style: BorderStyle.NIL, size: 0, color: 'auto' },
-  right:  { style: BorderStyle.NIL, size: 0, color: 'auto' },
+  top:    { style: BorderStyle.NIL,    size: 0, color: 'auto' },
+  bottom: { style: BorderStyle.NIL,    size: 0, color: 'auto' },
+  left:   { style: BorderStyle.NIL,    size: 0, color: 'auto' },
+  right:  { style: BorderStyle.NIL,    size: 0, color: 'auto' },
 }
 
 const ThinBorder = {
@@ -93,56 +90,46 @@ function sectionHeading(text: string) {
 }
 
 // ─── Cabecera del documento ───────────────────────────────────────────────────
+// Logo va en el cuerpo como imagen en tabla; en el header solo texto para evitar
+// problemas de rels en docx cuando la imagen está anidada en Header > Table.
 function makeHeader(ott: string, fecha: string): Header {
-  const logoData = b64ToUint8(ATT_LOGO_B64)
-
   return new Header({
     children: [
       new Table({
         width: { size: PAGE_COL, type: WidthType.DXA },
         borders: NoBorder,
         columnWidths: [
-          Math.round(0.23 * PAGE_COL),   // logo
-          Math.round(0.62 * PAGE_COL),   // título
-          Math.round(0.15 * PAGE_COL),   // fecha/página
+          Math.round(0.23 * PAGE_COL),
+          Math.round(0.62 * PAGE_COL),
+          Math.round(0.15 * PAGE_COL),
         ],
         rows: [
           new TableRow({
             children: [
-              // Logo
+              // Columna logo (texto placeholder)
               new TableCell({
                 borders: NoBorder,
                 verticalAlign: VerticalAlign.CENTER,
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [
-                      new ImageRun({
-                        data: logoData,
-                        transformation: {
-                          width:  Math.round(1.5 * IN),
-                          height: Math.round(1.5 * (92 / 315) * IN),
-                        },
-                        type: 'jpg',
-                      }),
-                    ],
-                    spacing: { before: 0, after: 0 },
-                  }),
-                ],
+                children: [new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: 'ENTEL', bold: true, color: '0070C0', size: 22 })],
+                  spacing: { before: 0, after: 0 },
+                })],
               }),
-              // Título
+              // Columna título
               new TableCell({
                 borders: NoBorder,
                 verticalAlign: VerticalAlign.CENTER,
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: 'INFORME OTT ', bold: true, size: 24 }), new TextRun({ text: ott, bold: true, size: 24 })],
-                    spacing: { before: 0, after: 0 },
-                  }),
-                ],
+                children: [new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({ text: 'INFORME OTT ', bold: true, size: 24 }),
+                    new TextRun({ text: ott, bold: true, size: 24 }),
+                  ],
+                  spacing: { before: 0, after: 0 },
+                })],
               }),
-              // Fecha y página
+              // Columna fecha / página
               new TableCell({
                 borders: NoBorder,
                 verticalAlign: VerticalAlign.CENTER,
@@ -156,9 +143,9 @@ function makeHeader(ott: string, fecha: string): Header {
                     alignment: AlignmentType.CENTER,
                     children: [
                       new TextRun({ text: 'Página ', size: 18 }),
-                      new TextRun({ children: [PageNumber.CURRENT], size: 18 }),
+                      new SimpleField('PAGE'),
                       new TextRun({ text: ' de ', size: 18 }),
-                      new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 18 }),
+                      new SimpleField('NUMPAGES'),
                     ],
                     spacing: { before: 0, after: 0 },
                   }),
@@ -172,12 +159,31 @@ function makeHeader(ott: string, fecha: string): Header {
   })
 }
 
+// ─── Logo en cuerpo (primera página, antes de secciones) ─────────────────────
+function makeLogoBlock(): Paragraph {
+  const logoData = b64ToUint8(ATT_LOGO_B64)
+  return new Paragraph({
+    alignment: AlignmentType.LEFT,
+    children: [
+      new ImageRun({
+        data: logoData,
+        transformation: {
+          width:  Math.round(1.5 * IN),
+          height: Math.round(1.5 * (92 / 315) * IN),
+        },
+        type: 'jpeg',
+      }),
+    ],
+    spacing: { before: 0, after: 120 },
+  })
+}
+
 // ─── Sección 1: Tipo de proyecto ──────────────────────────────────────────────
 const TIPO_GRID: [keyof typeof TIPO_PROYECTO_LABELS, keyof typeof TIPO_PROYECTO_LABELS][] = [
-  ['acceso_fijo',      'backhaul'],
-  ['conectividad_movil', 'acceso_b2b'],
-  ['proyectos_acceso', 'modernizacion'],
-  ['vulnerabilidad',   'adaptacion'],
+  ['acceso_fijo',       'backhaul'],
+  ['conectividad_movil','acceso_b2b'],
+  ['proyectos_acceso',  'modernizacion'],
+  ['vulnerabilidad',    'adaptacion'],
 ]
 
 function tipoLabelCell(tipo: keyof typeof TIPO_PROYECTO_LABELS) {
@@ -186,13 +192,11 @@ function tipoLabelCell(tipo: keyof typeof TIPO_PROYECTO_LABELS) {
     shading: blueShading(),
     borders: ThinBorder,
     verticalAlign: VerticalAlign.CENTER,
-    children: [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: TIPO_PROYECTO_LABELS[tipo], bold: true, color: 'FFFFFF', font: 'Arial Black', size: 18 })],
-        spacing: { before: 40, after: 40 },
-      }),
-    ],
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: TIPO_PROYECTO_LABELS[tipo], bold: true, color: 'FFFFFF', font: 'Arial Black', size: 18 })],
+      spacing: { before: 40, after: 40 },
+    })],
   })
 }
 
@@ -201,13 +205,11 @@ function tipoCheckCell(selected: boolean) {
     width: { size: Math.round(0.12 * PAGE_COL), type: WidthType.DXA },
     borders: ThinBorder,
     verticalAlign: VerticalAlign.CENTER,
-    children: [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: selected ? 'X' : '', bold: true, size: 22 })],
-        spacing: { before: 40, after: 40 },
-      }),
-    ],
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: selected ? 'X' : '', bold: true, size: 22 })],
+      spacing: { before: 40, after: 40 },
+    })],
   })
 }
 
@@ -256,48 +258,38 @@ function makeDatosSection(r: AttRecord) {
     datoPara('Jefe de Proyecto: ', r.jefeProyecto),
     datoPara('Comuna: ', r.comuna),
     datoPara('Región: ', r.region),
-    new Paragraph({
-      children: [
-        labelRun('Contratista: '), boldRun(r.contratista),
-      ],
-      spacing: { before: 40, after: 40 },
-    }),
-    coordsPara('Coordenadas de inicio: ', r.coordsInicio.lat, r.coordsInicio.lng),
+    datoPara('Contratista: ', r.contratista),
+    coordsPara('Coordenadas de inicio:  ', r.coordsInicio.lat, r.coordsInicio.lng),
     coordsPara('Coordenadas de término: ', r.coordsTermino.lat, r.coordsTermino.lng),
   ]
 }
 
 // ─── Sección 3: Descripción general ──────────────────────────────────────────
+function listPara(text: string) {
+  return new Paragraph({
+    children: [new TextRun({ text: `• ${text}`, size: 20 })],
+    spacing: { before: 40, after: 40 },
+    indent: { left: 360 },
+  })
+}
+
 function makeDescripcionSection(r: AttRecord) {
   const items: Paragraph[] = []
 
-  // Tramos de cable
   for (const t of r.tramos) {
     const parts = [t.tipoCable, t.metraje ? `${t.metraje}m` : '', t.desde, t.hasta]
-      .filter(Boolean)
-      .join(' — ')
-    if (parts) {
-      items.push(new Paragraph({
-        children: [new TextRun({ text: parts, size: 20 })],
-        spacing: { before: 40, after: 40 },
-      }))
-    }
+      .filter(Boolean).join(' — ')
+    if (parts) items.push(new Paragraph({ children: [new TextRun({ text: parts, size: 20 })], spacing: { before: 40, after: 40 } }))
   }
 
-  // Descripción cabecera
   if (r.descripcionCabecera) {
-    items.push(new Paragraph({
-      children: [new TextRun({ text: r.descripcionCabecera, size: 20 })],
-      spacing: { before: 40, after: 40 },
-    }))
+    items.push(new Paragraph({ children: [new TextRun({ text: r.descripcionCabecera, size: 20 })], spacing: { before: 40, after: 40 } }))
   }
 
-  // Condiciones
-  if (r.instalaCMIC)         items.push(new Paragraph({ children: [new TextRun({ text: 'Se instala CMIC en cliente', size: 20 })], spacing: { before: 40, after: 40 } }))
-  if (r.instalaMufas)        items.push(new Paragraph({ children: [new TextRun({ text: 'Se instala mufa proyectada', size: 20 })], spacing: { before: 40, after: 40 } }))
+  if (r.instalaCMIC)          items.push(new Paragraph({ children: [new TextRun({ text: 'Se instala CMIC en cliente', size: 20 })], spacing: { before: 40, after: 40 } }))
+  if (r.instalaMufas)         items.push(new Paragraph({ children: [new TextRun({ text: 'Se instala mufa proyectada', size: 20 })], spacing: { before: 40, after: 40 } }))
   if (r.tieneReparacionDucto) items.push(new Paragraph({ children: [new TextRun({ text: 'Se realiza calicata y reparación de ducto', size: 20 })], spacing: { before: 40, after: 40 } }))
 
-  // Ingreso a red
   if (r.tieneIngresoRed) {
     items.push(new Paragraph({ children: [new TextRun({ text: 'Con ingreso a red', size: 20 })], spacing: { before: 40, after: 40 } }))
     const { nodo, rack, odf, fo } = r.ingresoRed
@@ -307,16 +299,13 @@ function makeDescripcionSection(r: AttRecord) {
     if (fo)   items.push(new Paragraph({ children: [new TextRun({ text: `FO      ${fo}`, size: 20 })], spacing: { before: 20, after: 20 } }))
   }
 
-  // Hitos
   for (const h of r.hitos) {
     const text = [h.fecha, h.descripcion].filter(Boolean).join(' ')
-    if (text) {
-      items.push(new Paragraph({
-        children: [new TextRun({ text, size: 20 })],
-        bullet: { level: 0 },
-        spacing: { before: 40, after: 40 },
-      }))
-    }
+    if (text) items.push(listPara(text))
+  }
+
+  if (items.length === 0) {
+    items.push(new Paragraph({ children: [new TextRun({ text: ' ', size: 20 })], spacing: { before: 40, after: 40 } }))
   }
 
   return items
@@ -334,14 +323,20 @@ function infraHeaderCell(text: string) {
   return new TableCell({
     shading: blueShading(),
     borders: ThinBorder,
-    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18 })] })],
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18 })],
+    })],
   })
 }
 
 function infraDataCell(text: string, center = false) {
   return new TableCell({
     borders: ThinBorder,
-    children: [new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [new TextRun({ text, size: 20 })] })],
+    children: [new Paragraph({
+      alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
+      children: [new TextRun({ text, size: 20 })],
+    })],
   })
 }
 
@@ -371,24 +366,16 @@ const CAT_LABELS: Record<FotoCategoria, string> = {
   ingresoRed:      'INGRESO A RED',
 }
 
-const PHOTO_MAX_W_IN = 2.8   // pulgadas por columna
-const PHOTO_MAX_H_IN = 3.2   // pulgadas máximo alto
+const PHOTO_MAX_W_PX = Math.round(2.8 * 96)
+const PHOTO_MAX_H_PX = Math.round(3.2 * 96)
 
-interface PhotoData {
-  buffer: ArrayBuffer
-  w: number   // EMU
-  h: number   // EMU
-}
+interface PhotoData { buffer: ArrayBuffer; wEmu: number; hEmu: number }
 
 async function fetchPhoto(url: string): Promise<PhotoData | null> {
   try {
     const [buf, dims] = await Promise.all([urlToBuffer(url), getImageSize(url)])
-    const scaled = scaleToBox(dims.w, dims.h, Math.round(PHOTO_MAX_W_IN * 96), Math.round(PHOTO_MAX_H_IN * 96))
-    return {
-      buffer: buf,
-      w: Math.round(scaled.w * 9525),   // px → EMU (96 DPI)
-      h: Math.round(scaled.h * 9525),
-    }
+    const s = scaleToBox(dims.w, dims.h, PHOTO_MAX_W_PX, PHOTO_MAX_H_PX)
+    return { buffer: buf, wEmu: Math.round(s.w * 9525), hEmu: Math.round(s.h * 9525) }
   } catch {
     return null
   }
@@ -402,21 +389,13 @@ function photoCell(photo: PhotoData | null, label: string) {
       spacing: { before: 40, after: 60 },
     }),
   ]
-
   if (photo) {
     children.push(new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [
-        new ImageRun({
-          data: photo.buffer,
-          transformation: { width: photo.w, height: photo.h },
-          type: 'jpg',
-        }),
-      ],
+      children: [new ImageRun({ data: photo.buffer, transformation: { width: photo.wEmu, height: photo.hEmu }, type: 'jpeg' })],
       spacing: { before: 0, after: 40 },
     }))
   }
-
   return new TableCell({
     borders: ThinBorder,
     verticalAlign: VerticalAlign.TOP,
@@ -427,35 +406,24 @@ function photoCell(photo: PhotoData | null, label: string) {
 
 async function makeFotosSection(r: AttRecord) {
   const elements: (Paragraph | Table)[] = []
-  const activeCats: FotoCategoria[] = []
-  if (true)              activeCats.push('tendidoFO')
-  if (r.instalaCMIC)     activeCats.push('cmic')
-  if (true)              activeCats.push('medicionTraza')
+  const activeCats: FotoCategoria[] = ['tendidoFO']
+  if (r.instalaCMIC)          activeCats.push('cmic')
+  activeCats.push('medicionTraza')
   if (r.tieneReparacionDucto) activeCats.push('reparacionDucto')
-  if (r.instalaMufas)    activeCats.push('mufaProyectada')
-  if (r.tieneIngresoRed) activeCats.push('ingresoRed')
+  if (r.instalaMufas)         activeCats.push('mufaProyectada')
+  if (r.tieneIngresoRed)      activeCats.push('ingresoRed')
 
   for (const cat of activeCats) {
     const fotos = r.fotos[cat] ?? []
     if (fotos.length === 0) continue
-
-    // Fetch all photos in parallel
     const photos = await Promise.all(fotos.map((f) => f.previewUrl ? fetchPhoto(f.previewUrl) : Promise.resolve(null)))
-
-    // Group in pairs
     for (let i = 0; i < photos.length; i += 2) {
-      const left  = photos[i]
-      const right = photos[i + 1] ?? null
       elements.push(new Table({
         width: { size: PAGE_COL, type: WidthType.DXA },
-        rows: [
-          new TableRow({
-            children: [
-              photoCell(left,  CAT_LABELS[cat]),
-              photoCell(right, right ? CAT_LABELS[cat] : ''),
-            ],
-          }),
-        ],
+        rows: [new TableRow({ children: [
+          photoCell(photos[i] ?? null, CAT_LABELS[cat]),
+          photoCell(photos[i + 1] ?? null, photos[i + 1] ? CAT_LABELS[cat] : ''),
+        ]})],
       }))
       elements.push(new Paragraph({ spacing: { before: 60, after: 0 } }))
     }
@@ -473,8 +441,8 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
     sections: [{
       properties: {
         page: {
-          size:    { width: PAGE_W, height: Math.round(11 * TWIP) },
-          margin:  {
+          size:   { width: PAGE_W, height: Math.round(11 * TWIP) },
+          margin: {
             top:    Math.round(0.49 * TWIP),
             right:  MARGIN,
             bottom: Math.round(0.30 * TWIP),
@@ -484,10 +452,10 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
           },
         },
       },
-      headers: {
-        default: makeHeader(record.ott, fecha),
-      },
+      headers: { default: makeHeader(record.ott, fecha) },
       children: [
+        makeLogoBlock(),
+
         // Sección 1
         new Paragraph({ children: [new TextRun({ text: '1. TIPO DE PROYECTO', size: 20 })], spacing: { before: 0, after: 80 } }),
         makeTipoTable(record.tipoProyecto),
