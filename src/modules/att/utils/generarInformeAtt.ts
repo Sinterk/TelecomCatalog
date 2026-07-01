@@ -433,15 +433,15 @@ const AEREO_MAX_H = Math.round(3.5 * 96)  // 336 px
 
 // Espaciado entre cuadros de fotos (twips)
 const CELL_GAP  = 180   // espacio lateral entre par de fotos (≈ 0.125")
-const LABEL_GAP = 100   // espacio entre cuadro-label y cuadro-foto (row exacta)
+const LABEL_GAP = 60    // espacio entre cuadro-label y cuadro-foto (row exacta)
 const PORT_COL  = Math.floor((PAGE_COL - CELL_GAP) / 2)  // 4230 twips
 
 interface PhotoData { buffer: ArrayBuffer; wPx: number; hPx: number; isLandscape: boolean }
 
-async function fetchPhoto(url: string): Promise<PhotoData | null> {
+async function fetchPhoto(url: string, forceLandscape = false): Promise<PhotoData | null> {
   try {
     const [buf, dims] = await Promise.all([urlToBuffer(url), getImageSize(url)])
-    const isLandscape = dims.w > dims.h * 1.3
+    const isLandscape = forceLandscape || dims.w > dims.h * 1.3
     const s = scaleToBox(dims.w, dims.h, isLandscape ? LAND_MAX_W : PORT_MAX_W, isLandscape ? LAND_MAX_H : PORT_MAX_H)
     return { buffer: buf, wPx: s.w, hPx: s.h, isLandscape }
   } catch {
@@ -468,9 +468,10 @@ function gapCell(w: number) {
   })
 }
 
-// Fila espaciadora de altura exacta (sin bordes)
+// Fila espaciadora de altura exacta (sin bordes, no se parte entre páginas)
 function spacerRow(colWidths: number[]) {
   return new TableRow({
+    cantSplit: true,
     height: { value: LABEL_GAP, rule: HeightRule.EXACT },
     children: colWidths.map((w) => gapCell(w)),
   })
@@ -529,9 +530,9 @@ function photoGroupTable(
     width: { size: totalW, type: WidthType.DXA },
     columnWidths: colWidths,
     rows: [
-      new TableRow({ children: labelRowCells }),
+      new TableRow({ cantSplit: true, children: labelRowCells }),
       spacerRow(colWidths),
-      new TableRow({ children: photoRowCells }),
+      new TableRow({ cantSplit: true, children: photoRowCells }),
     ],
   })
 }
@@ -540,7 +541,7 @@ function photoGroupTable(
 function groupSep() {
   return new Paragraph({
     children: [new TextRun({ text: ' ', font: FONT, size: 20 })],
-    spacing: { before: 160, after: 80 },
+    spacing: { before: 80, after: 40 },
   })
 }
 
@@ -549,7 +550,10 @@ async function makeFotosSection(r: AttRecord) {
   if (r.fotos.length === 0) return elements
 
   const photos = await Promise.all(
-    r.fotos.map((f) => f.previewUrl ? fetchPhoto(f.previewUrl) : Promise.resolve(null))
+    r.fotos.map((f) => f.previewUrl
+      ? fetchPhoto(f.previewUrl, f.categoria === 'medicionTraza')
+      : Promise.resolve(null)
+    )
   )
 
   let i = 0
