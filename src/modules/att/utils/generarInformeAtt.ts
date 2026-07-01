@@ -87,11 +87,11 @@ function blueShading() {
 }
 
 function boldRun(text: string) {
-  return new TextRun({ text, bold: true, size: 20, font: FONT })
+  return new TextRun({ text, bold: true, size: 22, font: 'Cambria' })
 }
 
 function labelRun(text: string) {
-  return new TextRun({ text, size: 20, font: FONT })
+  return new TextRun({ text, size: 22, font: 'Cambria' })
 }
 
 function sectionHeading(text: string, newPage = false) {
@@ -246,7 +246,7 @@ function tipoLabelCell(tipo: keyof typeof TIPO_PROYECTO_LABELS) {
     verticalAlign: VerticalAlign.CENTER,
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: TIPO_PROYECTO_LABELS[tipo], bold: true, color: 'FFFFFF', font: FONT, size: 18 })],
+      children: [new TextRun({ text: TIPO_PROYECTO_LABELS[tipo], bold: true, color: 'FFFFFF', font: 'Arial Black', size: 18 })],
       spacing: { before: 40, after: 40 },
     })],
   })
@@ -320,9 +320,17 @@ function makeDatosSection(r: AttRecord) {
 // ─── Sección 3: Descripción general ──────────────────────────────────────────
 function para(text: string, opts: { bold?: boolean; indent?: boolean } = {}) {
   return new Paragraph({
-    children: [new TextRun({ text, size: 20, font: FONT, bold: opts.bold })],
+    children: [new TextRun({ text, size: 22, font: 'Cambria', bold: opts.bold })],
     spacing: { before: 40, after: 40 },
     indent: opts.indent ? { left: 360 } : undefined,
+  })
+}
+
+function hitoPara(text: string) {
+  return new Paragraph({
+    children: [new TextRun({ text, size: 22, font: 'Aptos' })],
+    spacing: { before: 40, after: 40 },
+    indent: { left: 360 },
   })
 }
 
@@ -353,7 +361,7 @@ function makeDescripcionSection(r: AttRecord) {
 
   for (const h of r.hitos) {
     const text = [h.fecha, h.descripcion].filter(Boolean).join(' — ')
-    if (text) items.push(para(`• ${text}`, { indent: true }))
+    if (text) items.push(hitoPara(`• ${text}`))
   }
 
   if (items.length === 0) {
@@ -377,7 +385,7 @@ function infraHeaderCell(text: string) {
     borders: ThinBorder,
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18, font: FONT })],
+      children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 28, font: 'Arial Black' })],
     })],
   })
 }
@@ -387,7 +395,7 @@ function infraDataCell(text: string, center = false) {
     borders: ThinBorder,
     children: [new Paragraph({
       alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
-      children: [new TextRun({ text, size: 20, font: FONT })],
+      children: [new TextRun({ text, size: 22, font: 'Arial' })],
     })],
   })
 }
@@ -537,11 +545,20 @@ function photoGroupTable(
   })
 }
 
-// Párrafo separador visible entre grupos de fotos
+// Párrafo separador entre grupos en la misma página
 function groupSep() {
   return new Paragraph({
     children: [new TextRun({ text: ' ', font: FONT, size: 20 })],
     spacing: { before: 80, after: 40 },
+  })
+}
+
+// Salto de página explícito entre páginas de fotos
+function photoPageBreak() {
+  return new Paragraph({
+    pageBreakBefore: true,
+    children: [new TextRun({ text: '', font: FONT, size: 20 })],
+    spacing: { before: 0, after: 0 },
   })
 }
 
@@ -557,26 +574,40 @@ async function makeFotosSection(r: AttRecord) {
   )
 
   let i = 0
+  let groupsOnPage = 0
+
   while (i < r.fotos.length) {
     const photo  = photos[i]
     const label  = fotoLabel(r.fotos[i])
     const isLand = photo?.isLandscape ?? false
 
+    // A landscape photo counts as 2 portrait slots (full page width)
+    const slotsNeeded = isLand ? 2 : 1
+
+    if (groupsOnPage > 0 && groupsOnPage + slotsNeeded > 2) {
+      // This group won't fit on the current page — break to next
+      elements.push(photoPageBreak())
+      groupsOnPage = 0
+    } else if (groupsOnPage > 0) {
+      elements.push(groupSep())
+    }
+
     if (isLand) {
-      // Foto horizontal (OTDR/medición) → ancho completo
       elements.push(photoGroupTable([label], [photo], PAGE_COL, true))
+      groupsOnPage += 2
     } else if (i + 1 < r.fotos.length && !(photos[i + 1]?.isLandscape)) {
-      // Par de fotos verticales
+      // Par de fotos verticales — counts as 2 slots
       const photo2 = photos[i + 1]
       const label2 = fotoLabel(r.fotos[i + 1])
       elements.push(photoGroupTable([label, label2], [photo, photo2], PORT_COL))
       i++
+      groupsOnPage += 2
     } else {
-      // Foto vertical sola → media página
+      // Foto vertical sola
       elements.push(photoGroupTable([label], [photo], PORT_COL))
+      groupsOnPage += 1
     }
 
-    elements.push(groupSep())
     i++
   }
 
