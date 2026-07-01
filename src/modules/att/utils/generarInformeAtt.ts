@@ -3,6 +3,7 @@ import {
   BorderStyle,
   Document,
   Header,
+  HeightRule,
   ImageRun,
   Packer,
   Paragraph,
@@ -422,11 +423,18 @@ function fotoLabel(f: AttRecord['fotos'][number]): string {
   return CAT_KEY_TO_LABEL[f.categoria] ?? f.categoria.toUpperCase()
 }
 
-// Horizontal: 5.6 × 3.5 in.  Vertical: 2.7 × 3.5 in.
-const PORT_MAX_W = Math.round(2.7 * 96)
-const PORT_MAX_H = Math.round(3.5 * 96)
-const LAND_MAX_W = Math.round(5.6 * 96)
-const LAND_MAX_H = Math.round(3.5 * 96)
+// Dimensiones de fotos (px a 96 DPI)
+const PORT_MAX_W = Math.round(2.7 * 96)   // 259 px — por columna portrait
+const PORT_MAX_H = Math.round(3.5 * 96)   // 336 px
+const LAND_MAX_W = Math.round(5.6 * 96)   // 538 px — foto horizontal (OTDR)
+const LAND_MAX_H = Math.round(3.5 * 96)   // 336 px
+const AEREO_MAX_W = Math.round(4.5 * 96)  // 432 px — foto aérea
+const AEREO_MAX_H = Math.round(3.5 * 96)  // 336 px
+
+// Espaciado entre cuadros de fotos (twips)
+const CELL_GAP  = 180   // espacio lateral entre par de fotos (≈ 0.125")
+const LABEL_GAP = 100   // espacio entre cuadro-label y cuadro-foto (row exacta)
+const PORT_COL  = Math.floor((PAGE_COL - CELL_GAP) / 2)  // 4230 twips
 
 interface PhotoData { buffer: ArrayBuffer; wPx: number; hPx: number; isLandscape: boolean }
 
@@ -441,38 +449,98 @@ async function fetchPhoto(url: string): Promise<PhotoData | null> {
   }
 }
 
-function labelRow(labels: string[], colW: number) {
-  return new TableRow({
-    children: labels.map((text) =>
-      new TableCell({
-        borders: ThinBorder,
-        width: { size: colW, type: WidthType.DXA },
-        children: [new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text, bold: true, size: 18, font: FONT })],
-          spacing: { before: 40, after: 40 },
-        })],
-      })
-    ),
+async function fetchAereoPhoto(url: string): Promise<{ buffer: ArrayBuffer; wPx: number; hPx: number } | null> {
+  try {
+    const [buf, dims] = await Promise.all([urlToBuffer(url), getImageSize(url)])
+    const s = scaleToBox(dims.w, dims.h, AEREO_MAX_W, AEREO_MAX_H)
+    return { buffer: buf, wPx: s.w, hPx: s.h }
+  } catch {
+    return null
+  }
+}
+
+// Celda vacía sin bordes (columna separadora o fila espaciadora)
+function gapCell(w: number) {
+  return new TableCell({
+    width: { size: w, type: WidthType.DXA },
+    borders: NoBorder,
+    children: [new Paragraph({ spacing: { before: 0, after: 0 } })],
   })
 }
 
-function photoRow(photos: (PhotoData | null)[], colW: number) {
+// Fila espaciadora de altura exacta (sin bordes)
+function spacerRow(colWidths: number[]) {
   return new TableRow({
-    children: photos.map((photo) =>
-      new TableCell({
-        borders: ThinBorder,
-        verticalAlign: VerticalAlign.TOP,
-        width: { size: colW, type: WidthType.DXA },
-        children: [new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: photo
-            ? [new ImageRun({ data: photo.buffer, transformation: { width: photo.wPx, height: photo.hPx }, type: 'jpg' })]
-            : [],
-          spacing: { before: 40, after: 40 },
-        })],
-      })
-    ),
+    height: { value: LABEL_GAP, rule: HeightRule.EXACT },
+    children: colWidths.map((w) => gapCell(w)),
+  })
+}
+
+// Celda de etiqueta con borde
+function labelCell(text: string, w: number) {
+  return new TableCell({
+    borders: ThinBorder,
+    width: { size: w, type: WidthType.DXA },
+    verticalAlign: VerticalAlign.CENTER,
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text, bold: true, size: 18, font: FONT })],
+      spacing: { before: 40, after: 40 },
+    })],
+  })
+}
+
+// Celda de foto con borde
+function photoCell(photo: PhotoData | null, w: number) {
+  return new TableCell({
+    borders: ThinBorder,
+    verticalAlign: VerticalAlign.TOP,
+    width: { size: w, type: WidthType.DXA },
+    children: [new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: photo
+        ? [new ImageRun({ data: photo.buffer, transformation: { width: photo.wPx, height: photo.hPx }, type: 'jpg' })]
+        : [],
+      spacing: { before: 40, after: 40 },
+    })],
+  })
+}
+
+// Tabla con un grupo de fotos: [label|gap|label] / spacerRow / [foto|gap|foto]
+function photoGroupTable(
+  labels: string[],
+  photos: (PhotoData | null)[],
+  colW: number,
+  isLandscape = false,
+): Table {
+  const withGap = !isLandscape && labels.length === 2
+  const colWidths = withGap ? [colW, CELL_GAP, colW] : [colW]
+  const totalW    = withGap ? colW * 2 + CELL_GAP : colW
+
+  const labelRowCells = withGap
+    ? [labelCell(labels[0], colW), gapCell(CELL_GAP), labelCell(labels[1], colW)]
+    : [labelCell(labels[0], colW)]
+
+  const photoRowCells = withGap
+    ? [photoCell(photos[0], colW), gapCell(CELL_GAP), photoCell(photos[1], colW)]
+    : [photoCell(photos[0], colW)]
+
+  return new Table({
+    width: { size: totalW, type: WidthType.DXA },
+    columnWidths: colWidths,
+    rows: [
+      new TableRow({ children: labelRowCells }),
+      spacerRow(colWidths),
+      new TableRow({ children: photoRowCells }),
+    ],
+  })
+}
+
+// Párrafo separador visible entre grupos de fotos
+function groupSep() {
+  return new Paragraph({
+    children: [new TextRun({ text: ' ', font: FONT, size: 20 })],
+    spacing: { before: 160, after: 80 },
   })
 }
 
@@ -484,10 +552,6 @@ async function makeFotosSection(r: AttRecord) {
     r.fotos.map((f) => f.previewUrl ? fetchPhoto(f.previewUrl) : Promise.resolve(null))
   )
 
-  const HALF = Math.round(PAGE_COL / 2)
-  const gap  = () => new Paragraph({ spacing: { before: 80,  after: 0 } })
-  const sep  = () => new Paragraph({ spacing: { before: 160, after: 0 } })
-
   let i = 0
   while (i < r.fotos.length) {
     const photo  = photos[i]
@@ -495,61 +559,59 @@ async function makeFotosSection(r: AttRecord) {
     const isLand = photo?.isLandscape ?? false
 
     if (isLand) {
-      // Foto horizontal → tabla ancho completo, label centrado, separados por espacio
-      elements.push(new Table({
-        width: { size: PAGE_COL, type: WidthType.DXA },
-        columnWidths: [PAGE_COL],
-        rows: [labelRow([label], PAGE_COL)],
-      }))
-      elements.push(gap())
-      elements.push(new Table({
-        width: { size: PAGE_COL, type: WidthType.DXA },
-        columnWidths: [PAGE_COL],
-        rows: [photoRow([photo], PAGE_COL)],
-      }))
-      i++
+      // Foto horizontal (OTDR/medición) → ancho completo
+      elements.push(photoGroupTable([label], [photo], PAGE_COL, true))
     } else if (i + 1 < r.fotos.length && !(photos[i + 1]?.isLandscape)) {
-      // Par de fotos verticales: labels / espacio / fotos
+      // Par de fotos verticales
       const photo2 = photos[i + 1]
       const label2 = fotoLabel(r.fotos[i + 1])
-      elements.push(new Table({
-        width: { size: PAGE_COL, type: WidthType.DXA },
-        columnWidths: [HALF, HALF],
-        rows: [labelRow([label, label2], HALF)],
-      }))
-      elements.push(gap())
-      elements.push(new Table({
-        width: { size: PAGE_COL, type: WidthType.DXA },
-        columnWidths: [HALF, HALF],
-        rows: [photoRow([photo, photo2], HALF)],
-      }))
-      i += 2
-    } else {
-      // Foto vertical sola → media página, sin celda vacía
-      elements.push(new Table({
-        width: { size: HALF, type: WidthType.DXA },
-        columnWidths: [HALF],
-        rows: [labelRow([label], HALF)],
-      }))
-      elements.push(gap())
-      elements.push(new Table({
-        width: { size: HALF, type: WidthType.DXA },
-        columnWidths: [HALF],
-        rows: [photoRow([photo], HALF)],
-      }))
+      elements.push(photoGroupTable([label, label2], [photo, photo2], PORT_COL))
       i++
+    } else {
+      // Foto vertical sola → media página
+      elements.push(photoGroupTable([label], [photo], PORT_COL))
     }
 
-    elements.push(sep())
+    elements.push(groupSep())
+    i++
   }
 
   return elements
 }
 
+// ─── Foto aérea (página 2) ────────────────────────────────────────────────────
+async function makeAereoBlock(r: AttRecord, pageBreak: boolean): Promise<(Paragraph | Table)[]> {
+  if (!r.fotoAerea?.previewUrl) return []
+  const photo = await fetchAereoPhoto(r.fotoAerea.previewUrl)
+  if (!photo) return []
+
+  return [
+    new Paragraph({
+      pageBreakBefore: pageBreak,
+      children: [new TextRun({ text: 'FOTO AÉREA', bold: true, color: '4F81BD', size: 22, font: FONT })],
+      spacing: { before: 0, after: 80 },
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new ImageRun({
+        data: photo.buffer,
+        transformation: { width: photo.wPx, height: photo.hPx },
+        type: 'jpg',
+      })],
+      spacing: { before: 0, after: 160 },
+    }),
+  ]
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
   const fecha = fechaDesdeISO(record.fecha)
-  const fotosElements = await makeFotosSection(record)
+
+  const [fotosElements, aereoElements] = await Promise.all([
+    makeFotosSection(record),
+    makeAereoBlock(record, true),
+  ])
+  const hasAereo = aereoElements.length > 0
 
   const doc = new Document({
     styles: {
@@ -573,30 +635,28 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
       },
       headers: { default: makeHeader(record, fecha) },
       children: [
-        // Logo Entel en cuerpo
+        // ── Página 1: Logo + secciones 1, 2, 3 ──
         makeLogoBlock(),
 
-        // Sección 1
         sectionHeading('1. TIPO DE PROYECTO'),
         makeTipoTable(record.tipoProyecto),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
-        // Sección 2
         sectionHeading('2. DATOS DEL PROYECTO'),
         ...makeDatosSection(record),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
-        // Sección 3
         sectionHeading('3. DESCRIPCIÓN GENERAL DEL PROYECTO'),
         ...makeDescripcionSection(record),
-        new Paragraph({ spacing: { before: 80, after: 0 } }),
 
-        // Sección 4
-        sectionHeading('4. INFRAESTRUCTURA PARA UTILIZAR'),
+        // ── Página 2: Foto aérea (si existe) + sección 4 ──
+        // Si hay foto aérea, ella lleva el pageBreak; si no, lo lleva sección 4
+        ...aereoElements,
+        sectionHeading('4. INFRAESTRUCTURA PARA UTILIZAR', !hasAereo),
         makeInfraTable(record),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
-        // Sección 5 – página nueva
+        // ── Página 3+: Sección 5 fotos ──
         sectionHeading('5. DETALLE DE SINGULARIDADES Y REGISTROS FOTOGRÁFICOS.', true),
         ...fotosElements,
       ],
