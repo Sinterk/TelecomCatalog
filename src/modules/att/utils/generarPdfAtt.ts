@@ -28,45 +28,34 @@ function fotoLabel(f: FotoEntry): string {
   return CAT_LABELS[f.categoria] ?? f.categoria.toUpperCase()
 }
 
-// Comprime una imagen a JPEG hasta que quepa en maxBytes (datos binarios aprox.)
-async function compressToTarget(url: string, maxBytes: number): Promise<string> {
+function isLand(f: FotoEntry): boolean {
+  return f.categoria === 'medicionTraza'
+}
+
+// Controla el tamaño de salida del canvas (Chrome PDF no puede inflar píxeles que no existen)
+// px a 96 DPI para impresión a ~150 DPI → factor ~1.56x respecto a pulgadas
+// Columna portrait: ~2.8" × 150 DPI ≈ 420 px. Landscape: ~5.7" × 150 DPI ≈ 855 px.
+const PORT_W = 420,  PORT_H = 560
+const LAND_W = 855,  LAND_H = 555
+const AERO_W = 700,  AERO_H = 470
+const JPEG_Q = 0.68  // calidad moderada; el tamaño lo controlan las dimensiones
+
+async function compressImg(url: string, maxW: number, maxH: number): Promise<string> {
   if (!url) return ''
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const img = new Image()
     img.onload = () => {
       const canvas = document.createElement('canvas')
       let w = img.naturalWidth, h = img.naturalHeight
-      const MAX = 1024
-      if (w > MAX || h > MAX) { const s = MAX / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s) }
+      const s = Math.min(1, maxW / w, maxH / h)
+      w = Math.round(w * s); h = Math.round(h * s)
       canvas.width = w; canvas.height = h
       canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-
-      // Búsqueda binaria: longitud base64 × 0.75 ≈ bytes reales
-      let lo = 0.05, hi = 0.92, best = canvas.toDataURL('image/jpeg', 0.1)
-      for (let k = 0; k < 12; k++) {
-        const mid = (lo + hi) / 2
-        const candidate = canvas.toDataURL('image/jpeg', mid)
-        if (candidate.length * 0.75 <= maxBytes) { best = candidate; lo = mid }
-        else hi = mid
-      }
-      resolve(best)
+      resolve(canvas.toDataURL('image/jpeg', JPEG_Q))
     }
     img.onerror = () => resolve('')
     img.src = url
   })
-}
-
-// Par de fotos lado a lado
-function photoRowHtml(
-  f1: FotoEntry, img1: string,
-  f2?: FotoEntry, img2?: string,
-): string {
-  const box = (f: FotoEntry, src: string) => `
-    <div class="pbox">
-      <div class="plabel">${esc(fotoLabel(f))}</div>
-      ${src ? `<img class="pimg" src="${src}" alt="${esc(fotoLabel(f))}" />` : '<div class="pempty"></div>'}
-    </div>`
-  return `<div class="prow">${box(f1, img1)}${f2 ? box(f2, img2 ?? '') : '<div class="pbox"></div>'}</div>`
 }
 
 export async function generarPdfAtt(record: AttRecord): Promise<void> {
@@ -77,25 +66,22 @@ export async function generarPdfAtt(record: AttRecord): Promise<void> {
   const csNombre = [cs, record.nombreServicio].filter(Boolean).join(' ')
   const idProyecto = [ott, cs].filter(Boolean).join(' - ')
 
-  // Recopilar todas las URLs con foto
-  const allUrls = [
-    record.fotoAerea?.previewUrl,
-    ...record.fotos.map(f => f.previewUrl),
-  ].filter(Boolean) as string[]
+  // ── Comprimir fotos con dimensiones correctas según tipo ──
+  const compMap = new Map<string, string>()
+  await Promise.all([
+    record.fotoAerea?.previewUrl
+      ? compressImg(record.fotoAerea.previewUrl, AERO_W, AERO_H)
+          .then(c => { if (c) compMap.set(record.fotoAerea!.previewUrl, c) })
+      : Promise.resolve(),
+    ...record.fotos.map(f => {
+      const url = f.previewUrl
+      if (!url) return Promise.resolve()
+      const [mW, mH] = isLand(f) ? [LAND_W, LAND_H] : [PORT_W, PORT_H]
+      return compressImg(url, mW, mH).then(c => { if (c) compMap.set(url, c) })
+    }),
+  ])
 
-  // Presupuesto: 550 KB total, ~60 KB para estructura/texto
-  const TOTAL  = 550 * 1024
-  const OVERHEAD = 65 * 1024
-  const perPhoto = allUrls.length > 0 ? Math.floor((TOTAL - OVERHEAD) / allUrls.length) : TOTAL - OVERHEAD
-
-  // Comprimir en paralelo
-  const compressed = new Map<string, string>()
-  await Promise.all(allUrls.map(async url => {
-    const c = await compressToTarget(url, perPhoto)
-    if (c) compressed.set(url, c)
-  }))
-
-  const ci = (url?: string) => (url ? compressed.get(url) ?? '' : '')
+  const ci = (url?: string) => url ? (compMap.get(url) ?? '') : ''
 
   // ── Tipo de proyecto ──
   const TIPO_GRID: [string, string][] = [
@@ -140,26 +126,74 @@ export async function generarPdfAtt(record: AttRecord): Promise<void> {
   const irow = (label: string, usa: boolean, cant = '', comp = '') =>
     `<tr><td>${esc(label)}</td><td class="c">${usa?'SI':'NO'}</td><td class="c">${esc(cant)}</td><td>${esc(comp)}</td></tr>`
 
-  // ── Fotos (4 por página, pares de 2) ──
+  // ── Sección 5: Fotos ──
+  // Landscape = 2 slots (fila completa), portrait = 1 slot (media fila).
+  // Página: máx. 4 slots = 2 filas portrait, o 1 landscape + 1 fila portrait.
   let fotosHtml = ''
-  let photosOnPage = 0
-  for (let i = 0; i < record.fotos.length; ) {
-    if (photosOnPage > 0 && photosOnPage >= 4) { fotosHtml += '<div class="pb"></div>'; photosOnPage = 0 }
-    const f1 = record.fotos[i]
-    const f2 = record.fotos[i + 1]
-    fotosHtml += photoRowHtml(f1, ci(f1.previewUrl), f2, f2 ? ci(f2.previewUrl) : undefined)
-    const added = f2 ? 2 : 1
-    photosOnPage += added
-    i += added
+  let slots = 0
+  let i = 0
+  while (i < record.fotos.length) {
+    const f = record.fotos[i]
+    const land = isLand(f)
+    const need = land ? 2 : 1
+
+    if (slots > 0 && slots + need > 4) {
+      fotosHtml += '<div class="pb"></div>'
+      slots = 0
+    } else if (slots > 0) {
+      fotosHtml += '<div style="height:5pt"></div>'
+    }
+
+    if (land) {
+      // Foto horizontal — fila completa
+      const src = ci(f.previewUrl)
+      fotosHtml += `
+<div class="lrow">
+  <div class="plabel">${esc(fotoLabel(f))}</div>
+  ${src ? `<img class="limg" src="${src}" alt="${esc(fotoLabel(f))}" />` : '<div style="height:170pt"></div>'}
+</div>`
+      slots += 2
+      i++
+    } else if (i + 1 < record.fotos.length && !isLand(record.fotos[i + 1])) {
+      // Par de fotos portrait
+      const f2 = record.fotos[i + 1]
+      const s1 = ci(f.previewUrl), s2 = ci(f2.previewUrl)
+      fotosHtml += `
+<div class="prow">
+  <div class="pbox">
+    <div class="plabel">${esc(fotoLabel(f))}</div>
+    ${s1 ? `<img class="pimg" src="${s1}" alt="${esc(fotoLabel(f))}" />` : '<div class="pempty"></div>'}
+  </div>
+  <div class="pbox">
+    <div class="plabel">${esc(fotoLabel(f2))}</div>
+    ${s2 ? `<img class="pimg" src="${s2}" alt="${esc(fotoLabel(f2))}" />` : '<div class="pempty"></div>'}
+  </div>
+</div>`
+      slots += 2
+      i += 2
+    } else {
+      // Foto portrait sola
+      const s1 = ci(f.previewUrl)
+      fotosHtml += `
+<div class="prow">
+  <div class="pbox">
+    <div class="plabel">${esc(fotoLabel(f))}</div>
+    ${s1 ? `<img class="pimg" src="${s1}" alt="${esc(fotoLabel(f))}" />` : '<div class="pempty"></div>'}
+  </div>
+  <div class="pbox"></div>
+</div>`
+      slots += 1
+      i++
+    }
   }
 
   // ── Foto aérea ──
   const aereoSrc = ci(record.fotoAerea?.previewUrl)
   const aereoHtml = aereoSrc ? `
-    <h2 class="sh">FOTO AÉREA</h2>
-    <div style="text-align:center;margin-bottom:10pt">
-      <img src="${aereoSrc}" style="max-width:90%;max-height:260pt;object-fit:contain" />
-    </div>` : ''
+<h2 class="sh">FOTO AÉREA</h2>
+<div style="text-align:center;margin-bottom:10pt">
+  <img src="${aereoSrc}" style="max-width:90%;max-height:260pt;object-fit:contain" />
+</div>` : ''
 
   const logoSrc = `data:image/jpeg;base64,${ATT_LOGO_B64}`
 
@@ -169,7 +203,6 @@ export async function generarPdfAtt(record: AttRecord): Promise<void> {
 @page{size:letter;margin:1.25in 1.25in 0.75in 1.25in}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000}
-/* Encabezado */
 .hdr{width:100%;border-collapse:collapse;margin-bottom:9pt;border:2px double #000}
 .hdr td{border:1px solid #000;padding:4pt 5pt;vertical-align:middle}
 .hdr .logo{width:15%;text-align:center}.hdr .logo img{max-width:100%;max-height:34pt;object-fit:contain}
@@ -179,35 +212,29 @@ body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000}
 .hdr .ottc{text-align:center;font-family:Cambria,serif;font-size:9pt}
 .hdr .csc{text-align:center;font-size:9pt}
 .hdr .pgc{text-align:center;font-size:9pt;font-weight:bold}
-/* Secciones */
 .sh{font-family:Calibri,sans-serif;font-size:11pt;font-weight:bold;color:#4F81BD;margin:8pt 0 4pt}
-/* Tipo proyecto */
 .tt{width:100%;border-collapse:collapse;margin-bottom:7pt}
 .tt td{border:1px solid #000;padding:3pt 5pt;font-size:8.5pt}
 .tlbl{background:#0070C0;color:#fff;width:38%;font-family:"Arial Black",Arial,sans-serif;font-weight:bold;text-align:center}
-.tsel{background:#004e8c}
-.tck{width:12%;text-align:center;font-weight:bold}
-/* Datos */
-.datos p{font-family:Cambria,serif;font-size:10pt;margin:2pt 0}
-.val{font-weight:bold}
-/* Descripción */
+.tsel{background:#004e8c}.tck{width:12%;text-align:center;font-weight:bold}
+.datos p{font-family:Cambria,serif;font-size:10pt;margin:2pt 0}.val{font-weight:bold}
 .dp{font-family:Cambria,serif;font-size:10pt;margin:2pt 0}
-.dp.ind{margin-left:18pt}
-.dp.hito{font-family:Aptos,Calibri,sans-serif}
-/* Infra */
+.dp.ind{margin-left:18pt}.dp.hito{font-family:Aptos,Calibri,sans-serif}
 .it{width:100%;border-collapse:collapse;margin-bottom:7pt}
 .it th{background:#0070C0;color:#fff;font-family:"Arial Black",Arial,sans-serif;font-size:11pt;font-weight:bold;border:1px solid #000;padding:5pt 7pt;text-align:center}
 .it td{border:1px solid #000;padding:4pt 7pt;font-family:Arial,sans-serif;font-size:10pt}
 .it td.c{text-align:center}
-/* Fotos */
-.prow{display:flex;gap:8pt;margin-bottom:6pt;break-inside:avoid}
-.pbox{flex:1;border:1px solid #000;display:flex;flex-direction:column}
-.plabel{border-bottom:1px solid #000;padding:3pt 5pt;font-size:9pt;font-weight:bold;text-align:center;min-height:22pt}
-.pimg{width:100%;object-fit:contain;max-height:150pt}
-.pempty{flex:1;min-height:120pt}
+/* Portrait: par lado a lado */
+.prow{display:flex;gap:8pt;break-inside:avoid}
+.pbox{flex:1;border:1px solid #000;display:flex;flex-direction:column;min-height:170pt}
+.plabel{border-bottom:1px solid #000;padding:3pt 5pt;font-size:9pt;font-weight:bold;text-align:center;min-height:20pt}
+.pimg{width:100%;object-fit:contain;max-height:190pt;flex:1}
+.pempty{flex:1;min-height:150pt}
+/* Landscape: fila completa */
+.lrow{border:1px solid #000;break-inside:avoid;margin-bottom:0}
+.limg{width:100%;object-fit:contain;max-height:200pt;display:block}
 /* Salto de página */
 .pb{page-break-after:always}
-/* Botón imprimir */
 .pbtn{position:fixed;top:10px;right:10px;padding:8px 16px;background:#0070C0;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11pt;z-index:9999}
 @media print{.pbtn{display:none}}
 </style></head><body>
@@ -253,11 +280,11 @@ ${aereoHtml}
 <h2 class="sh">4. INFRAESTRUCTURA PARA UTILIZAR</h2><br>
 <table class="it">
   <tr><th style="width:55%">Infraestructura</th><th style="width:15%">Sí / No</th><th style="width:15%">Cantidad</th><th style="width:15%">Compañía</th></tr>
-  ${irow('¿Utiliza postes eléctricos?',              pe.usa,  pe.usa?pe.cantidad:'', pe.usa?pe.compania:'')}
-  ${irow('¿Utiliza postes de otra compañía de teleco?', pt.usa, pt.usa?pt.cantidad:'', pt.usa?pt.compania:'')}
-  ${irow('¿Utiliza ductos de otra compañía de teleco?', dt.usa, dt.usa?dt.cantidad:'', dt.usa?dt.compania:'')}
-  ${irow('¿Utiliza fibra óptica de otra compañía?', fo2.usa)}
-  ${irow('¿Se proyectan postes/ductos de Entel?',   pE.usa)}
+  ${irow('¿Utiliza postes eléctricos?',                   pe.usa,  pe.usa?pe.cantidad:'', pe.usa?pe.compania:'')}
+  ${irow('¿Utiliza postes de otra compañía de teleco?',   pt.usa,  pt.usa?pt.cantidad:'', pt.usa?pt.compania:'')}
+  ${irow('¿Utiliza ductos de otra compañía de teleco?',   dt.usa,  dt.usa?dt.cantidad:'', dt.usa?dt.compania:'')}
+  ${irow('¿Utiliza fibra óptica de otra compañía?',       fo2.usa)}
+  ${irow('¿Se proyectan postes/ductos de Entel?',         pE.usa)}
 </table>
 
 <div class="pb"></div>
