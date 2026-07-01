@@ -24,6 +24,11 @@ const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto'
 function fechaLarga(d = new Date()) {
   return `${String(d.getDate()).padStart(2,'0')} ${MESES[d.getMonth()]} ${d.getFullYear()}`
 }
+function fechaDesdeISO(iso?: string): string {
+  if (!iso) return fechaLarga()
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${String(d).padStart(2,'0')} ${MESES[m - 1]} ${y}`
+}
 
 // ─── Unidades ────────────────────────────────────────────────────────────────
 const IN   = 914400   // 1 inch en EMU
@@ -100,8 +105,10 @@ function sectionHeading(text: string, newPage = false) {
 const HDR_COLS = [1400, 5040, 2200] // twips, suma 8640
 
 function makeHeader(record: AttRecord, fecha: string): Header {
-  const ott = record.ott || ''
-  const iniciativaContratista = [record.iniciativa, record.contratista].filter(Boolean).join(' - ')
+  const ott   = record.ott || ''
+  const titulo = record.tituloInforme?.trim() || `Informe posterior OTT ${ott}`
+  const cs     = record.codigoServicio ?? ''
+  const csNombre = [cs, record.nombreServicio].filter(Boolean).join(' ')
 
   return new Header({
     children: [
@@ -123,23 +130,16 @@ function makeHeader(record: AttRecord, fecha: string): Header {
                   spacing: { before: 40, after: 40 },
                 })],
               }),
-              // Título
+              // Título del informe
               new TableCell({
                 borders: ThinBorder,
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[1], type: WidthType.DXA },
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: 'INFORME POSTERIOR OTT', bold: true, size: 24, font: FONT })],
-                    spacing: { before: 40, after: 0 },
-                  }),
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: ott, bold: true, size: 24, font: FONT })],
-                    spacing: { before: 0, after: 40 },
-                  }),
-                ],
+                children: [new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: titulo, bold: true, size: 22, font: FONT })],
+                  spacing: { before: 40, after: 40 },
+                })],
               }),
               // Fecha
               new TableCell({
@@ -175,14 +175,14 @@ function makeHeader(record: AttRecord, fecha: string): Header {
                   spacing: { before: 40, after: 40 },
                 })],
               }),
-              // Iniciativa - Contratista
+              // Código de servicio + Nombre
               new TableCell({
                 borders: ThinBorder,
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[1], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: iniciativaContratista, size: 18, font: FONT })],
+                  children: [new TextRun({ text: csNombre, size: 18, font: FONT })],
                   spacing: { before: 40, after: 40 },
                 })],
               }),
@@ -301,10 +301,11 @@ function coordsPara(label: string, lat: string, lng: string) {
 }
 
 function makeDatosSection(r: AttRecord) {
+  const idProyecto = [r.ott, r.codigoServicio].filter(Boolean).join(' - ')
   return [
     datoPara('Nombre del proyecto: ', r.nombreProyecto),
     datoPara('Iniciativa del proyecto: ', r.iniciativa),
-    datoPara('ID de Proyecto: ', r.ott),
+    datoPara('ID de Proyecto: ', idProyecto),
     datoPara('Ingeniero Proyecto: ', r.ingenieroProyecto),
     datoPara('Jefe de Proyecto: ', r.jefeProyecto),
     datoPara('Comuna: ', r.comuna),
@@ -547,7 +548,7 @@ async function makeFotosSection(r: AttRecord) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
-  const fecha = fechaLarga()
+  const fecha = fechaDesdeISO(record.fecha)
   const fotosElements = await makeFotosSection(record)
 
   const doc = new Document({

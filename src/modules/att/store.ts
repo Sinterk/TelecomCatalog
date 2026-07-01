@@ -6,6 +6,11 @@ import type {
   TramoCable, Hito, InfraItem, Infraestructura,
 } from './types'
 
+function todayISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function emptyInfraItem(): InfraItem {
   return { usa: false, cantidad: '', compania: '' }
 }
@@ -37,6 +42,10 @@ export function emptyAttRecord(id: string, now: number): AttRecord {
     hitos: [],
     infraestructura: emptyInfra(),
     fotos: [],
+    fecha: todayISO(),
+    codigoServicio: '',
+    nombreServicio: '',
+    tituloInforme: '',
   }
 }
 

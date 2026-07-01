@@ -111,4 +111,10 @@ export interface AttRecord {
 
   // Sección 5 — Fotos (lista plana; cada una lleva su encabezado)
   fotos: FotoEntry[]
+
+  // Identificación del informe
+  fecha?: string          // "YYYY-MM-DD", default hoy
+  codigoServicio?: string // "CS XXXXXXXXXX"
+  nombreServicio?: string
+  tituloInforme?: string  // vacío → "Informe posterior OTT [ott]"
 }

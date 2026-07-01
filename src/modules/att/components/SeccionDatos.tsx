@@ -17,6 +17,14 @@ export function SeccionDatos({ recordId }: Props) {
     <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 space-y-4">
       <h2 className="text-xs font-semibold text-brand-400 uppercase tracking-wide">2. Datos del proyecto</h2>
 
+      {/* Fecha del informe */}
+      <div>
+        <label className="block text-xs text-slate-400 mb-1">Fecha del informe</label>
+        <input type="date" value={record.fecha ?? ''}
+          onChange={(e) => set({ fecha: e.target.value })}
+          className={inputCls} />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-slate-400 mb-1">OTT <span className="text-red-400">*</span></label>
@@ -30,6 +38,31 @@ export function SeccionDatos({ recordId }: Props) {
             onChange={(e) => set({ iniciativa: e.target.value })}
             placeholder="Ej. IN-0001" className={inputCls} />
         </div>
+      </div>
+
+      {/* Código de servicio */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Código de servicio</label>
+          <input type="text" value={record.codigoServicio ?? ''}
+            onChange={(e) => set({ codigoServicio: e.target.value })}
+            placeholder="CS 10000193196" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Nombre servicio</label>
+          <input type="text" value={record.nombreServicio ?? ''}
+            onChange={(e) => set({ nombreServicio: e.target.value })}
+            placeholder="Ej. Reposición" className={inputCls} />
+        </div>
+      </div>
+
+      {/* Título del informe */}
+      <div>
+        <label className="block text-xs text-slate-400 mb-1">Título del informe</label>
+        <input type="text" value={record.tituloInforme ?? ''}
+          onChange={(e) => set({ tituloInforme: e.target.value })}
+          placeholder={`Informe posterior OTT ${record.ott || '[OTT]'}`}
+          className={inputCls} />
       </div>
 
       <div>
