@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAtt } from '../hooks/useAtt'
 import { useRestoreAttPhotos } from '../hooks/useRestoreAttPhotos'
 import { generarInformeAtt } from '../utils/generarInformeAtt'
+import { generarPdfAtt } from '../utils/generarPdfAtt'
 import { SeccionTipo } from './SeccionTipo'
 import { SeccionDatos } from './SeccionDatos'
 import { SeccionDescripcion } from './SeccionDescripcion'
@@ -20,6 +21,7 @@ export function Editor() {
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [genStatus, setGenStatus] = useState<GenStatus>('idle')
+  const [pdfStatus, setPdfStatus] = useState<GenStatus>('idle')
   const prevUpdatedAt = useRef<number | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -60,6 +62,19 @@ export function Editor() {
     }
   }
 
+  async function handlePdf() {
+    if (pdfStatus === 'generating') return
+    setPdfStatus('generating')
+    try {
+      await generarPdfAtt(record!)
+      setPdfStatus('idle')
+    } catch (err) {
+      console.error('[ATT PDF]', err)
+      setPdfStatus('error')
+      setTimeout(() => setPdfStatus('idle'), 3000)
+    }
+  }
+
   return (
     <div className="space-y-4 pb-28">
       {/* Header */}
@@ -88,12 +103,21 @@ export function Editor() {
         </div>
         <button
           type="button"
+          onClick={handlePdf}
+          disabled={pdfStatus === 'generating'}
+          className="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors shrink-0 disabled:opacity-60">
+          {pdfStatus === 'generating' ? '⏳ Comprimiendo…'
+            : pdfStatus === 'error'  ? '❌ Error'
+            : '🖨 PDF'}
+        </button>
+        <button
+          type="button"
           onClick={handleGenerar}
           disabled={genStatus === 'generating'}
           className="py-2.5 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition-colors shrink-0 disabled:opacity-60">
           {genStatus === 'generating' ? '⏳ Generando…'
             : genStatus === 'error'  ? '❌ Error'
-            : '📄 Generar DOCX'}
+            : '📄 DOCX'}
         </button>
       </div>
     </div>

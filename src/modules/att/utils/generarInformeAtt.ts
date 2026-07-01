@@ -234,25 +234,6 @@ function makeHeader(record: AttRecord, fecha: string): Header {
   })
 }
 
-// ─── Logo en cuerpo (primera página, antes de secciones) ─────────────────────
-function makeLogoBlock(): Paragraph {
-  const logoData = b64ToUint8(ATT_LOGO_B64)
-  return new Paragraph({
-    alignment: AlignmentType.LEFT,
-    children: [
-      new ImageRun({
-        data: logoData,
-        transformation: {
-          width:  Math.round(1.5 * 96),              // px a 96 DPI
-          height: Math.round(1.5 * (92 / 315) * 96),
-        },
-        type: 'jpg',
-      }),
-    ],
-    spacing: { before: 0, after: 120 },
-  })
-}
-
 // ─── Sección 1: Tipo de proyecto ──────────────────────────────────────────────
 const TIPO_GRID: [keyof typeof TIPO_PROYECTO_LABELS, keyof typeof TIPO_PROYECTO_LABELS][] = [
   ['acceso_fijo',       'backhaul'],
@@ -697,9 +678,7 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
       },
       headers: { default: makeHeader(record, fecha) },
       children: [
-        // ── Página 1: Logo + secciones 1, 2, 3 ──
-        makeLogoBlock(),
-
+        // ── Página 1: secciones 1, 2, 3 ──
         sectionHeading('1. TIPO DE PROYECTO'),
         new Paragraph({ spacing: { before: 0, after: 80 } }),
         makeTipoTable(record.tipoProyecto),
