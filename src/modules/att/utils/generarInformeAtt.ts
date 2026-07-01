@@ -574,8 +574,14 @@ async function makeFotosSection(r: AttRecord) {
   const elements: (Paragraph | Table)[] = []
   if (r.fotos.length === 0) return elements
 
+  // medicionTraza always after all other photos (matches PDF ordering)
+  const fotos = [
+    ...r.fotos.filter(f => f.categoria !== 'medicionTraza'),
+    ...r.fotos.filter(f => f.categoria === 'medicionTraza'),
+  ]
+
   const photos = await Promise.all(
-    r.fotos.map((f) => f.previewUrl
+    fotos.map((f) => f.previewUrl
       ? fetchPhoto(f.previewUrl, f.categoria === 'medicionTraza')
       : Promise.resolve(null)
     )
@@ -584,9 +590,9 @@ async function makeFotosSection(r: AttRecord) {
   let i = 0
   let groupsOnPage = 0
 
-  while (i < r.fotos.length) {
+  while (i < fotos.length) {
     const photo  = photos[i]
-    const label  = fotoLabel(r.fotos[i])
+    const label  = fotoLabel(fotos[i])
     const isLand = photo?.isLandscape ?? false
 
     // A landscape photo counts as 2 portrait slots (full page width)
@@ -603,10 +609,10 @@ async function makeFotosSection(r: AttRecord) {
     if (isLand) {
       elements.push(photoGroupTable([label], [photo], PAGE_COL, true))
       groupsOnPage += 2
-    } else if (i + 1 < r.fotos.length && !(photos[i + 1]?.isLandscape)) {
+    } else if (i + 1 < fotos.length && !(photos[i + 1]?.isLandscape)) {
       // Par de fotos verticales — counts as 2 slots
       const photo2 = photos[i + 1]
-      const label2 = fotoLabel(r.fotos[i + 1])
+      const label2 = fotoLabel(fotos[i + 1])
       elements.push(photoGroupTable([label, label2], [photo, photo2], PORT_COL))
       i++
       groupsOnPage += 2
