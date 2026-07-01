@@ -103,101 +103,124 @@ function sectionHeading(text: string, newPage = false) {
 }
 
 // ─── Cabecera del documento (2 filas) ────────────────────────────────────────
-const HDR_COLS = [1400, 5040, 2200] // twips, suma 8640
+// Tabla más ancha que el cuerpo usando indent negativo
+const HDR_INDENT = 400                          // twips hacia la izquierda
+const HDR_W      = PAGE_COL + HDR_INDENT * 2   // 8640 + 800 = 9440 twips
+const HDR_COLS   = [1530, 5500, 2410]           // suma 9440
+
+const HDR_D = { style: BorderStyle.DOUBLE, size: 8, color: 'auto' }
+const HDR_S = { style: BorderStyle.SINGLE, size: 4, color: 'auto' }
+function hdrBord(top: boolean, btm: boolean, lft: boolean, rgt: boolean) {
+  const b = (outer: boolean) => outer ? HDR_D : HDR_S
+  return { top: b(top), bottom: b(btm), left: b(lft), right: b(rgt) }
+}
+
+const ROW_H = { height: { value: 700, rule: HeightRule.ATLEAST } }
 
 function makeHeader(record: AttRecord, fecha: string): Header {
-  const ott   = record.ott || ''
-  const titulo = record.tituloInforme?.trim() || `Informe posterior OTT ${ott}`
-  const cs     = record.codigoServicio ?? ''
+  const ott      = record.ott || ''
+  const titulo   = record.tituloInforme?.trim() || `Informe posterior OTT ${ott}`
+  const cs       = record.codigoServicio ?? ''
   const csNombre = [cs, record.nombreServicio].filter(Boolean).join(' ')
+
+  const logoData = b64ToUint8(ATT_LOGO_B64)
+  const LOGO_W   = 110
+  const LOGO_H   = Math.round(LOGO_W * 92 / 315)
 
   return new Header({
     children: [
       new Table({
-        width: { size: PAGE_COL, type: WidthType.DXA },
+        width:        { size: HDR_W, type: WidthType.DXA },
+        indent:       { size: -HDR_INDENT, type: WidthType.DXA },
         columnWidths: HDR_COLS,
         rows: [
-          // ── Fila 1 ──
+          // ── Fila 1: logo | título | fecha ──
           new TableRow({
+            height: ROW_H.height,
             children: [
-              // Logo (e) entel — texto placeholder)
+              // Logo
               new TableCell({
-                borders: ThinBorder,
+                borders: hdrBord(true, false, true, false),
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[0], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: 'e) entel', bold: true, color: '006BB6', size: 20, font: FONT })],
+                  children: [new ImageRun({
+                    data: logoData,
+                    transformation: { width: LOGO_W, height: LOGO_H },
+                    type: 'jpg',
+                  })],
                   spacing: { before: 40, after: 40 },
                 })],
               }),
               // Título del informe
               new TableCell({
-                borders: ThinBorder,
+                borders: hdrBord(true, false, false, false),
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[1], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: titulo, bold: true, size: 22, font: FONT })],
+                  children: [new TextRun({ text: titulo, bold: true, size: 32, font: 'Verdana' })],
                   spacing: { before: 40, after: 40 },
                 })],
               }),
               // Fecha
               new TableCell({
-                borders: ThinBorder,
+                borders: hdrBord(true, false, false, true),
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[2], type: WidthType.DXA },
                 children: [
                   new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: 'FECHA INFORME', bold: true, size: 16, font: FONT })],
+                    children: [new TextRun({ text: 'FECHA INFORME', bold: true, size: 24, font: FONT })],
                     spacing: { before: 40, after: 20 },
                   }),
                   new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: fecha, size: 18, font: FONT })],
+                    children: [new TextRun({ text: fecha, size: 20, font: FONT })],
                     spacing: { before: 0, after: 40 },
                   }),
                 ],
               }),
             ],
           }),
-          // ── Fila 2 ──
+          // ── Fila 2: OTT | código servicio | página ──
           new TableRow({
+            height: ROW_H.height,
             children: [
               // OTT
               new TableCell({
-                borders: ThinBorder,
+                borders: hdrBord(false, true, true, false),
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[0], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: ott, size: 18, font: FONT })],
+                  children: [new TextRun({ text: ott, size: 20, font: 'Cambria' })],
                   spacing: { before: 40, after: 40 },
                 })],
               }),
               // Código de servicio + Nombre
               new TableCell({
-                borders: ThinBorder,
+                borders: hdrBord(false, true, false, false),
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[1], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: csNombre, size: 18, font: FONT })],
+                  children: [new TextRun({ text: csNombre, size: 20, font: FONT })],
                   spacing: { before: 40, after: 40 },
                 })],
               }),
-              // Página
+              // Página x de y
               new TableCell({
-                borders: ThinBorder,
+                borders: hdrBord(false, true, false, true),
                 verticalAlign: VerticalAlign.CENTER,
                 width: { size: HDR_COLS[2], type: WidthType.DXA },
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
                   children: [
-                    new TextRun({ text: 'Página ', size: 18, font: FONT }),
+                    new TextRun({ text: 'Página ', bold: true, size: 24, font: FONT }),
                     new SimpleField('PAGE'),
-                    new TextRun({ text: ' de ', size: 18, font: FONT }),
+                    new TextRun({ text: ' de ', bold: true, size: 24, font: FONT }),
                     new SimpleField('NUMPAGES'),
                   ],
                   spacing: { before: 40, after: 40 },
@@ -338,11 +361,13 @@ function makeDescripcionSection(r: AttRecord) {
   const items: Paragraph[] = []
 
   // Tendidos (formato redactado, uno por párrafo)
-  for (const t of r.tramos) {
-    if (!t.tipoCable && !t.metraje && !t.desde && !t.hasta) continue
+  const validTramos = r.tramos.filter(t => t.tipoCable || t.metraje || t.desde || t.hasta)
+  for (let ti = 0; ti < validTramos.length; ti++) {
+    const t   = validTramos[ti]
+    const end = ti === validTramos.length - 1 ? '.' : ';'
     const sentence =
       `Se realiza tendido de ${t.metraje || '___'}m de cable ${t.tipoCable || '___'} ` +
-      `desde ${t.desde || '___'} hasta ${t.hasta || '___'};`
+      `desde ${t.desde || '___'} hasta ${t.hasta || '___'}${end}`
     items.push(para(sentence))
   }
 
@@ -383,6 +408,7 @@ function infraHeaderCell(text: string) {
   return new TableCell({
     shading: blueShading(),
     borders: ThinBorder,
+    margins: { top: 120, bottom: 120, left: 140, right: 140 },
     children: [new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 28, font: 'Arial Black' })],
@@ -393,6 +419,7 @@ function infraHeaderCell(text: string) {
 function infraDataCell(text: string, center = false) {
   return new TableCell({
     borders: ThinBorder,
+    margins: { top: 100, bottom: 100, left: 140, right: 140 },
     children: [new Paragraph({
       alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
       children: [new TextRun({ text, size: 22, font: 'Arial' })],
@@ -584,7 +611,7 @@ async function makeFotosSection(r: AttRecord) {
     // A landscape photo counts as 2 portrait slots (full page width)
     const slotsNeeded = isLand ? 2 : 1
 
-    if (groupsOnPage > 0 && groupsOnPage + slotsNeeded > 2) {
+    if (groupsOnPage > 0 && groupsOnPage + slotsNeeded > 4) {
       // This group won't fit on the current page — break to next
       elements.push(photoPageBreak())
       groupsOnPage = 0
@@ -674,10 +701,12 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
         makeLogoBlock(),
 
         sectionHeading('1. TIPO DE PROYECTO'),
+        new Paragraph({ spacing: { before: 0, after: 80 } }),
         makeTipoTable(record.tipoProyecto),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
         sectionHeading('2. DATOS DEL PROYECTO'),
+        new Paragraph({ spacing: { before: 0, after: 80 } }),
         ...makeDatosSection(record),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
@@ -688,6 +717,7 @@ export async function generarInformeAtt(record: AttRecord): Promise<Blob> {
         // Si hay foto aérea, ella lleva el pageBreak; si no, lo lleva sección 4
         ...aereoElements,
         sectionHeading('4. INFRAESTRUCTURA PARA UTILIZAR', !hasAereo),
+        new Paragraph({ spacing: { before: 0, after: 80 } }),
         makeInfraTable(record),
         new Paragraph({ spacing: { before: 80, after: 0 } }),
 
