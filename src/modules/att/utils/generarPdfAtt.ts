@@ -1,4 +1,3 @@
-import jsPDF from 'jspdf'
 import { ATT_LOGO_B64 } from './logoBase64'
 import { TIPO_PROYECTO_LABELS } from '../types'
 import type { AttRecord, FotoEntry } from '../types'
@@ -313,6 +312,7 @@ export async function generarPdfAtt(record: AttRecord): Promise<void> {
   const ci = (url?: string): CImg | undefined => url ? compMap.get(url) : undefined
   const ha: HdrArgs = [titulo, fecha, ott, csNombre]
 
+  const { default: jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
 
   // ── Page 1: Sections 1, 2, 3 ─────────────────────────────────────────────────
