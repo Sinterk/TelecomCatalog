@@ -200,10 +200,15 @@ export async function generarPdfAtt(record: AttRecord): Promise<void> {
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><title>${esc(titulo)}</title>
 <style>
-@page{size:letter;margin:1.25in 1.25in 0.75in 1.25in}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000}
-.hdr{width:100%;border-collapse:collapse;margin-bottom:9pt;border:2px double #000}
+/* @page margin:0 elimina los pies "Página 1 de N / fecha" de Chrome */
+@page{size:letter;margin:0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000;
+     padding:1.55in 1.25in 0.65in 1.25in}
+/* Encabezado fijo — se repite en cada página impresa */
+#pghdr{position:fixed;top:0;left:0;right:0;
+        padding:0.18in 1.25in 0.12in 1.25in;background:#fff;z-index:10}
+.hdr{width:100%;border-collapse:collapse;border:2px double #000}
 .hdr td{border:1px solid #000;padding:4pt 5pt;vertical-align:middle}
 .hdr .logo{width:15%;text-align:center}.hdr .logo img{max-width:100%;max-height:34pt;object-fit:contain}
 .hdr .ttl{text-align:center;font-family:Verdana,sans-serif;font-size:14pt;font-weight:bold}
@@ -228,11 +233,11 @@ body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000}
 .prow{display:flex;gap:8pt;break-inside:avoid}
 .pbox{flex:1;border:1px solid #000;display:flex;flex-direction:column;min-height:170pt}
 .plabel{border-bottom:1px solid #000;padding:3pt 5pt;font-size:9pt;font-weight:bold;text-align:center;min-height:20pt}
-.pimg{width:100%;object-fit:contain;max-height:190pt;flex:1}
+.pimg{width:calc(100% - 6px);margin:3px;object-fit:contain;max-height:183pt;flex:1}
 .pempty{flex:1;min-height:150pt}
 /* Landscape: fila completa */
 .lrow{border:1px solid #000;break-inside:avoid;margin-bottom:0}
-.limg{width:100%;object-fit:contain;max-height:200pt;display:block}
+.limg{width:calc(100% - 6px);margin:3px;object-fit:contain;max-height:193pt;display:block}
 /* Salto de página */
 .pb{page-break-after:always}
 .pbtn{position:fixed;top:10px;right:10px;padding:8px 16px;background:#0070C0;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11pt;z-index:9999}
@@ -241,6 +246,8 @@ body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000}
 
 <button class="pbtn" onclick="window.print()">🖨 Guardar PDF</button>
 
+<!-- Encabezado fijo (position:fixed → se repite en cada página del PDF) -->
+<div id="pghdr">
 <table class="hdr">
   <tr>
     <td class="logo"><img src="${logoSrc}" alt="Entel" /></td>
@@ -250,9 +257,10 @@ body{font-family:Calibri,Arial,sans-serif;font-size:10pt;color:#000}
   <tr>
     <td class="ottc">${esc(ott)}</td>
     <td class="csc">${esc(csNombre)}</td>
-    <td class="pgc">Página 1 de 1</td>
+    <td class="pgc">OTT ${esc(ott)}</td>
   </tr>
 </table>
+</div>
 
 <h2 class="sh">1. TIPO DE PROYECTO</h2><br>
 <table class="tt">${tipoHtml}</table>
